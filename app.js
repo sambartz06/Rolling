@@ -12,6 +12,11 @@
   const BARS = window.ROLLING_BARS;
   const BAR_BY_ID = Object.fromEntries(BARS.map((b) => [b.id, b]));
   const CAMPUS = [43.0745, -89.3925]; // Library Mall / State St
+  // Always shown on the map, even before anyone has history (Sam, 2026-11-18):
+  // State Street Brats, Chasers II, Moon Bar, The Double U, Monday's, Wando's,
+  // Jay's, City Bar, Sconnie Bar.
+  const STARTER_BARS = ["w886357869", "n2522840399", "n13120355381", "n4479808708", "w1441901386",
+    "w875584137", "w875584136", "w1435231298", "w369451920"];
   const COMMENT_WORDS = 100;
   const DAY = 24 * 3600 * 1000;
 
@@ -475,9 +480,12 @@
     // (and more recently) they go, the deeper the red and the slightly bigger
     // the dot (Sam, 2026-11-18: color does most of the work so no dot gets
     // huge). Bars they've never picked aren't shown at all.
-    if (showSpots) {
-      const { score } = friendSpots();
+    // Starter bars (Sam, 2026-11-18) are always on the map, palest red until
+    // friends' history makes them deeper, so a brand-new account isn't empty.
+    {
+      const { score } = showSpots ? friendSpots() : { score: {} };
       const max = Math.max(1, ...Object.values(score));
+      for (const id of STARTER_BARS) if (BAR_BY_ID[id] && !(id in score)) score[id] = 0;
       for (const [barId, sc] of Object.entries(score)) {
         if (by[barId]) continue;
         const b = BAR_BY_ID[barId], t = sc / max;
