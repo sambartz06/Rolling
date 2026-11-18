@@ -41,6 +41,14 @@ window.ROLLING_SEED = function seed() {
     { userId: "u_olivia", barId: "n1182263550", at: minsAgo(95), excitement: 65, arrive: "23:30", comment: "" },
     { userId: "u_grace",  barId: "w1441672606", at: minsAgo(30), excitement: 70, arrive: "22:15", comment: "" },
     { userId: "u_ben",    barId: "n7216954964", at: minsAgo(50), excitement: 55, arrive: "22:45", comment: "" },
+    // Nick can't decide. Each earlier pick tonight is kept in history.
+    { userId: "u_nick", barId: "n1182263550", at: minsAgo(4), excitement: 97, arrive: "23:30", comment: "ok THIS is the one. final answer",
+      history: [
+        ["w1441901386", 150, 60, "mondays for sure"], ["w875584137", 132, 45, "actually wando's, fishbowls"],
+        ["n2522840399", 118, 70, ""], ["n4184659489", 101, 30, "lowkey just want a burger"],
+        ["n8949860975", 84, 85, "red shed or bust"], ["w875584136", 61, 50, ""],
+        ["n4479808708", 37, 75, "double u, trust me"], ["w1441672606", 19, 90, "ok mackesey's is the move"],
+      ].map(([barId, m, excitement, comment]) => ({ barId, at: minsAgo(m), excitement, arrive: "22:30", comment })) },
   ];
 
   // ~8 weeks of past posts from everyone, so "popular" has history to rank on.

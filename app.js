@@ -1,4 +1,4 @@
-/* Rolling: web prototype.
+/* Word ("what's the word?"): web prototype.
  * No build step and no backend: state lives in localStorage so it runs as a static
  * site (GitHub Pages) or by opening index.html. The data shapes (users, friendships,
  * requests, posts) are the ones a real backend would store. */
@@ -24,6 +24,9 @@
   state.favorites = state.favorites || { u_sam: ["u_jake", "u_maddie"] };
   state.settings = state.settings || {};
   state.seen = state.seen || {};
+  // replies: [{ post: "<userId>@<timestamp>", userId, text, at }]
+  const seedReplies = !state.replies;
+  state.replies = state.replies || [];
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE_KEY));
@@ -90,9 +93,6 @@
     if (m < 60) return m + "m ago";
     return Math.floor(m / 60) + "h ago";
   }
-  function avatar(u, cls = "") {
-    return `<div class="avatar ${cls}" style="background:${u.color}">${esc(u.name[0])}</div>`;
-  }
   function distKm(a, b) {
     const R = 6371, toR = Math.PI / 180;
     const dLat = (b[0] - a[0]) * toR, dLon = (b[1] - a[1]) * toR;
@@ -143,18 +143,20 @@
   function showTab(name) {
     currentTab = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + name));
-    document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    const lit = name === "thread" ? "feed" : name;
+    document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === lit));
     render();
     if (name === "map") setTimeout(() => map && map.invalidateSize(), 0);
   }
   document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
-  $("#postBtn").addEventListener("click", () => openComposer());
 
   // ---------- view-as switcher (stand-in for sign-in) ----------
+  // Lives on the Profile tab so the top bar is just the logo, bell and gear.
   function renderViewAs() {
+    if (!$("#viewAs")) return;
     $("#viewAs").innerHTML = state.users.map((u) => `<option value="${u.id}" ${u.id === state.me ? "selected" : ""}>${esc(u.name)}</option>`).join("");
   }
-  $("#viewAs").addEventListener("change", (e) => { state.me = e.target.value; save(); render(); });
+  document.addEventListener("change", (e) => { if (e.target.id === "viewAs") { state.me = e.target.value; save(); render(); } });
   function renderBadge() {
     const n = incoming().length;
     const b = $("#reqBadge");
@@ -162,7 +164,52 @@
     b.classList.toggle("hidden", !n);
   }
 
+  // Tap a crossed-out bar to see that earlier pick; tap again to close.
+  // Runs in the capture phase so it doesn't also open the post's replies.
+  function fmtClock(ts) {
+    const d = new Date(ts);
+    return fmtTime(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
+  }
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".was");
+    if (!btn) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const card = btn.closest(".card.post, .mine, .thread-post");
+    const id = card.dataset.thread || (card.querySelector("[data-thread]") || {}).dataset?.thread || card.dataset.post;
+    const p = findPost(id);
+    const box = btn.closest(".post-meta").querySelector(".was-box");
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.closest(".post-where").querySelectorAll(".was").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (open || !p) { box.classList.add("hidden"); return; }
+    const h = p.history[+btn.dataset.was];
+    btn.setAttribute("aria-expanded", "true");
+    box.innerHTML = `<div class="was-title"><b>${esc(BAR_BY_ID[h.barId].name)}</b> <span>· picked ${fmtClock(h.at)}</span></div>
+      ${h.comment ? `<div class="was-comment">${esc(h.comment)}</div>` : `<div class="was-comment none">No comment</div>`}
+      ${meter(h.excitement, true)}`;
+    box.classList.remove("hidden");
+  }, true);
+
+  // "Jake", "Jake and Tyler", "Jake, Tyler and Olivia"
+  function nameList(n) {
+    return n.length < 2 ? (n[0] || "") : n.slice(0, -1).join(", ") + " and " + n[n.length - 1];
+  }
+
   // ---------- feed ----------
+  // Post layout (Sam, 2026-11-18): name (no profile pictures anywhere), then bar and arrival time in
+  // small text, then the comment in larger text, replies, and the excitement bar last.
+  function postBody(p, opts = {}) {
+    const u = user(p.userId), b = BAR_BY_ID[p.barId];
+    return `<div class="post-head">
+        <div class="post-meta">
+          <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
+          <div class="post-where">${(p.history || []).map((h, i) =>
+            `<button class="was" data-was="${i}" aria-expanded="false" title="Earlier pick">${esc(BAR_BY_ID[h.barId].name)}</button><span class="arrow">→</span>`).join("")}<b data-bar="${b.id}">${esc(b.name)}</b> · ~${fmtTime(p.arrive)}</div>
+          <div class="was-box hidden"></div>
+        </div></div>
+      ${p.comment ? `<div class="post-text">${esc(p.comment)}</div>` : ""}
+      ${opts.replies ? replyBar(p) : ""}
+      <div class="post-meter">${meter(p.excitement)}</div>`;
+  }
   function postDetails(p) {
     return `${meter(p.excitement)}
       <div class="meta-row">${p.arrive ? `<span class="arrive">Arriving ~${fmtTime(p.arrive)}</span>` : ""}</div>
@@ -180,17 +227,16 @@
     if (mine) {
       const b = BAR_BY_ID[mine.barId];
       html += `<div class="card mine">
-        <div class="label">You're rolling to</div>
-        <div class="bar">${esc(b.name)}</div>
-        ${postDetails(mine)}
-        <div style="margin-top:12px"><button class="btn small" id="editMine">Change tonight's post</button></div>
+        <div class="label">Your post tonight</div>
+        ${postBody(mine, { replies: true })}
+        <div class="mine-actions"><button class="btn small" id="editMine">Change tonight's post</button></div>
       </div>`;
     } else {
       html += `<div class="card mine">
         <div class="label">Tonight</div>
-        <div class="bar">Where are you rolling?</div>
-        <div class="sub small">One post a night. Your friends see it in their feed and on the map.</div>
-        <button class="btn primary" id="startPost">Post where I'm rolling</button>
+        <div class="bar">What's the word?</div>
+        <div class="sub small">Where are you headed tonight? One post a night. Your friends see it in their feed and on the map.</div>
+        <button class="btn primary" id="startPost">Post where I'm headed</button>
       </div>`;
     }
 
@@ -198,31 +244,25 @@
     if (!posts.length) {
       html += friendIds(state.me).size
         ? `<div class="empty">None of your friends have posted yet tonight.</div>`
-        : `<div class="empty">Add some friends to see where they're rolling.<br><br><button class="btn small" data-goto="friends">Find friends</button></div>`;
+        : `<div class="empty">Add some friends to see where they're headed.<br><br><button class="btn small" data-goto="friends">Find friends</button></div>`;
     } else {
       html += `<div class="stack">` + posts.map((p) => {
         const u = user(p.userId), b = BAR_BY_ID[p.barId];
-        return `<div class="card post">
-          ${avatar(u)}
-          <div class="body">
-            <div class="line1"><span class="who">${esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
-            <div class="where">rolling to <b data-bar="${b.id}">${esc(b.name)}</b></div>
-            ${postDetails(p)}
-          </div>
-        </div>`;
+        return `<div class="card post" data-thread="${pid(p)}">${postBody(p, { replies: true })}</div>`;
       }).join("") + `</div>`;
     }
 
     if (quiet.length) {
       html += `<h2>Haven't posted yet</h2><div class="waiting">` +
-        quiet.map((u) => `<div class="w">${avatar(u, "sm")}${esc(u.name)}</div>`).join("") + `</div>`;
+        quiet.map((u) => `<div class="w">${esc(u.name)}</div>`).join("") + `</div>`;
     }
     el.innerHTML = html;
 
     const s = $("#startPost", el); if (s) s.onclick = () => openComposer();
     const e = $("#editMine", el); if (e) e.onclick = () => openComposer();
-    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
+    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = (ev) => { ev.stopPropagation(); showTab("map"); focusBar(n.dataset.bar); });
     el.querySelectorAll("[data-goto]").forEach((n) => n.onclick = () => showTab(n.dataset.goto));
+    el.querySelectorAll("[data-thread]").forEach((n) => n.onclick = (ev) => { ev.stopPropagation(); openThread(n.dataset.thread); });
   }
 
   // ---------- sheet ----------
@@ -257,7 +297,7 @@
 
   function renderPick(draft) {
     openSheet(`
-      <h3>Where are you rolling tonight?</h3>
+      <h3>What's the word?</h3>
       <div class="sub">Most popular bars first</div>
       <input class="search" id="barSearch" placeholder="Search bars" autocomplete="off" />
       <div class="barlist" id="barList"></div>`);
@@ -287,18 +327,18 @@
       <div class="picked"><span><div class="n">${esc(b.name)}</div><div class="sub small">${esc(b.addr || b.type)}</div></span>
         <button class="btn small" id="changeBar">Change</button></div>
 
-      <label class="field-label" for="hype">Excitement</label>
-      <div class="hype">
-        <input type="range" id="hype" min="0" max="100" step="1" value="${draft.excitement}" />
-        <div class="hype-ends"><span>Low</span><b id="hypeLabel"></b><span>High</span></div>
-      </div>
-
       <label class="field-label" for="arrive">Getting there around</label>
       <select id="arrive" class="select">${TIMES.map((t) => `<option value="${t}" ${t === draft.arrive ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select>
 
       <label class="field-label" for="comment">What's the move?</label>
       <textarea class="comment" id="comment" placeholder="Pregame plans, a birthday, a drink special… give your friends a reason to pull up.">${esc(draft.comment || "")}</textarea>
       <div class="small counter" id="cc"></div>
+
+      <label class="field-label" for="hype">How excited are you?</label>
+      <div class="hype">
+        <input type="range" id="hype" min="0" max="100" step="1" value="${draft.excitement}" />
+        <div class="hype-ends"><span>Low</span><b id="hypeLabel"></b><span>High</span></div>
+      </div>
 
       <div class="sheet-actions">
         <button class="btn" id="cancel">Cancel</button>
@@ -331,17 +371,33 @@
       const prev = myPost();
       state.posts = state.posts.filter((p) => !(p.userId === state.me && nightKey(p.at) === tonight()));
       const post = { userId: state.me, barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() };
+      // Switching bars keeps the old pick, so the feed can show the whole saga.
+      const history = prev ? (prev.history || []).slice() : [];
+      if (prev && prev.barId !== post.barId) history.push({ barId: prev.barId, at: prev.at, excitement: prev.excitement, arrive: prev.arrive, comment: prev.comment || "" });
+      if (history.length) post.history = history;
       state.posts.push(post);
+      if (prev) state.replies.forEach((r) => { if (r.post === pid(prev)) r.post = pid(post); });
       onPost(post, prev);
       save();
       closeSheet();
-      toast("You're rolling to " + b.name);
+      toast("You're headed to " + b.name);
       render();
     };
   }
 
   // ---------- map ----------
-  let map, barLayer, countLayer, showAllBars = false, fittedFor = null;
+  let map, barLayer, countLayer, showSpots = true, fittedFor = null;
+
+  // How often my friends have been to each bar (before tonight), recency-weighted.
+  function friendSpots() {
+    const f = friendIds(state.me), now = Date.now(), score = {}, count = {};
+    for (const p of state.posts) {
+      if (!f.has(p.userId) || nightKey(p.at) === tonight()) continue;
+      score[p.barId] = (score[p.barId] || 0) + Math.pow(0.5, (now - p.at) / DAY / 21);
+      count[p.barId] = (count[p.barId] || 0) + 1;
+    }
+    return { score, count };
+  }
   function initMap() {
     if (map) return;
     map = L.map("map", { zoomControl: false }).setView(CAMPUS, 15);
@@ -360,6 +416,14 @@
     return by;
   }
 
+  // Map color scale, 0 to 1: pale red, then Badger red, then deep red.
+  const HEAT = [[243, 185, 187], [197, 5, 12], [122, 0, 6]];
+  function heat(t) {
+    t = Math.max(0, Math.min(1, t));
+    const [a, b, k] = t < 0.6 ? [HEAT[0], HEAT[1], t / 0.6] : [HEAT[1], HEAT[2], (t - 0.6) / 0.4];
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(",")})`;
+  }
+
   function renderMap() {
     initMap();
     barLayer.clearLayers();
@@ -367,20 +431,31 @@
     const by = goersByBar();
     const mine = myPost();
 
-    if (showAllBars) {
-      for (const b of BARS) {
-        if (by[b.id]) continue;
-        L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", html: '<div class="bar-dot"></div>', iconSize: [12, 12] }) })
-          .on("click", () => openBar(b.id)).addTo(barLayer);
+    // Friends' spots: every bar your friends have been to before. The more
+    // (and more recently) they go, the deeper the red and the slightly bigger
+    // the dot (Sam, 2026-11-18: color does most of the work so no dot gets
+    // huge). Bars they've never picked aren't shown at all.
+    if (showSpots) {
+      const { score } = friendSpots();
+      const max = Math.max(1, ...Object.values(score));
+      for (const [barId, sc] of Object.entries(score)) {
+        if (by[barId]) continue;
+        const b = BAR_BY_ID[barId], t = sc / max;
+        const d = Math.round(10 + 14 * t); // 5 to 12px radius
+        L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", html: `<div class="spot" style="width:${d}px;height:${d}px;background:${heat(t)}"></div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }), zIndexOffset: d })
+          .on("click", () => openBar(barId)).addTo(barLayer);
       }
     }
+    // Tonight: same color scale, by how many friends are going.
+    const maxHere = Math.max(1, ...Object.values(by).map((ps) => ps.filter((p) => p.userId !== state.me).length));
     for (const [barId, posts] of Object.entries(by)) {
       const b = BAR_BY_ID[barId];
       const isMine = mine && mine.barId === barId;
       const friendsHere = posts.filter((p) => p.userId !== state.me).length;
       const label = friendsHere ? friendsHere : "You";
+      const t = friendsHere / maxHere, d = friendsHere ? Math.round(24 + 8 * t) : 30;
       L.marker([b.lat, b.lon], {
-        icon: L.divIcon({ className: "", html: `<div class="count-marker ${isMine ? "me" : ""} ${friendsHere ? "" : "only-me"}">${label}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] }),
+        icon: L.divIcon({ className: "", html: `<div class="count-marker ${isMine ? "me" : ""} ${friendsHere ? "" : "only-me"}" style="width:${d}px;height:${d}px;${friendsHere ? `background:${heat(0.35 + 0.65 * t)}` : ""}">${label}</div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }),
         zIndexOffset: 1000 + friendsHere,
       }).on("click", () => openBar(barId)).addTo(countLayer);
     }
@@ -396,9 +471,12 @@
     const totalFriends = visiblePosts().filter((p) => p.userId !== state.me).length;
     const barsCount = Object.keys(by).filter((id) => by[id].some((p) => p.userId !== state.me)).length;
     $("#mapLegend").innerHTML = `
-      <div class="pill"><b>${totalFriends}</b> friend${totalFriends === 1 ? "" : "s"} out at <b>${barsCount}</b> bar${barsCount === 1 ? "" : "s"}</div>
-      <label class="pill toggle"><input type="checkbox" id="allBars" ${showAllBars ? "checked" : ""}/> All bars</label>`;
-    $("#allBars").onchange = (e) => { showAllBars = e.target.checked; renderMap(); };
+      <div class="legend-left">
+        <div class="pill"><b>${totalFriends}</b> friend${totalFriends === 1 ? "" : "s"} out at <b>${barsCount}</b> bar${barsCount === 1 ? "" : "s"}</div>
+        <div class="heat-key">Less <span class="ramp"></span> More</div>
+      </div>
+      <label class="pill toggle"><input type="checkbox" id="allBars" ${showSpots ? "checked" : ""}/> Friends' spots</label>`;
+    $("#allBars").onchange = (e) => { showSpots = e.target.checked; renderMap(); };
   }
 
   function focusBar(barId) {
@@ -416,10 +494,12 @@
     openSheet(`
       <h3>${esc(b.name)}</h3>
       <div class="sub">${esc(b.addr || b.type)}${posts.length ? ` · ${posts.length} going tonight` : ""}</div>
+      ${posts.length ? `<div class="goer-names">${esc(nameList(posts.map((p) => p.userId === state.me ? "You" : user(p.userId).name)))}</div>` : ""}
+      ${friendSpots().count[barId] ? `<div class="spot-note">Your friends have been here ${friendSpots().count[barId]} time${friendSpots().count[barId] > 1 ? "s" : ""} before</div>` : ""}
       ${avg !== null ? `<div class="field-label">Group excitement</div>${meter(avg)}` : ""}
       <div class="goers">${posts.length ? posts.map((p) => {
         const u = user(p.userId);
-        return `<div class="g">${avatar(u, "sm")}<div class="g-body">
+        return `<div class="g"><div class="g-body">
           <div><b>${u.id === state.me ? "You" : esc(u.name)}</b> <span class="sub small">· ~${fmtTime(p.arrive)}</span></div>
           ${meter(p.excitement, true)}
           ${p.comment ? `<div class="small g-comment">${esc(p.comment)}</div>` : ""}
@@ -427,7 +507,7 @@
       }).join("") : `<div class="empty" style="padding:14px">No friends here yet tonight.</div>`}</div>
       <div class="sheet-actions">
         <button class="btn" id="closeBar">Close</button>
-        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">I'm rolling here</button>`}
+        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">I'm headed here</button>`}
       </div>`);
     $("#closeBar").onclick = closeSheet;
     const r = $("#rollHere"); if (r) r.onclick = () => openComposer(barId);
@@ -443,32 +523,49 @@
     const others = state.users.filter((u) => u.id !== state.me && !f.has(u.id) && !gotFrom.has(u.id));
     const mutuals = (uid) => [...friendIds(uid)].filter((x) => f.has(x)).length;
     const person = (u, sub, actions) => `
-      <div class="person" data-name="${esc((u.name + " " + u.handle).toLowerCase())}">${avatar(u)}
+      <div class="person" data-name="${esc((u.name + " " + u.handle).toLowerCase())}">
         <div class="meta"><div class="n">${esc(u.name)}</div><div class="h">@${esc(u.handle)}${sub ? " · " + sub : ""}</div></div>
         <div class="actions">${actions}</div></div>`;
 
-    el.innerHTML = `
-      ${inc.length ? `<h2>Friend requests · ${inc.length}</h2>
-      <div class="card list">${inc.map((r) => person(user(r.from), ago(r.at),
-        `<button class="btn small" data-decline="${r.from}">Decline</button><button class="btn small primary" data-accept="${r.from}">Accept</button>`)).join("")}</div>` : ""}
+    const q = friendQuery.trim().toLowerCase().replace(/^@/, "");
+    const friendRow = (u) => person(u, isFav(state.me, u.id) ? "Favorite" : "",
+      `${starBtn(u.id)}<button class="btn small ghost" data-remove="${u.id}">Remove</button>`);
+    const otherRow = (u) => person(u, mutuals(u.id) ? mutuals(u.id) + " mutual" : "",
+      sentTo.has(u.id)
+        ? `<button class="btn small" data-cancel="${u.id}">Requested</button>`
+        : `<button class="btn small primary" data-request="${u.id}">Add friend</button>`);
+    const reqRow = (r) => person(user(r.from), ago(r.at),
+      `<button class="btn small" data-decline="${r.from}">Decline</button><button class="btn small primary" data-accept="${r.from}">Accept</button>`);
 
-      <h2>Find people</h2>
-      <input class="search" id="friendSearch" placeholder="Search by name or @handle" autocomplete="off" />
-      <div class="card list" id="addList" style="margin-top:10px">${others.length ? others.map((u) => person(u,
-        mutuals(u.id) ? mutuals(u.id) + " mutual" : "",
-        sentTo.has(u.id)
-          ? `<button class="btn small" data-cancel="${u.id}">Requested</button>`
-          : `<button class="btn small primary" data-request="${u.id}">Add friend</button>`)).join("")
-        : `<div class="sub small">You're friends with everyone in the demo.</div>`}</div>
-
+    let body;
+    if (q) {
+      // One results list: your friends first, then requests, then everyone else.
+      const hit = (u) => (u.name + " " + u.handle).toLowerCase().includes(q);
+      const rows = [
+        ...friends.filter(hit).map(friendRow),
+        ...inc.filter((r) => hit(user(r.from))).map(reqRow),
+        ...others.filter(hit).map(otherRow),
+      ];
+      body = `<h2>Results · ${rows.length}</h2>
+        <div class="card list">${rows.length ? rows.join("") : `<div class="sub small">Nobody matches "${esc(friendQuery)}".</div>`}</div>`;
+    } else {
+      body = `
+      ${inc.length ? `<h2>Friend requests · ${inc.length}</h2><div class="card list">${inc.map(reqRow).join("")}</div>` : ""}
       <h2>Your friends · ${friends.length}</h2>
-      <div class="card list">${friends.length ? friends.map((u) => person(u, isFav(state.me, u.id) ? "Favorite" : "",
-        `${starBtn(u.id)}<button class="btn small ghost" data-remove="${u.id}">Remove</button>`)).join("")
-        : `<div class="sub small">No friends yet. Send some requests above.</div>`}</div>
-
+      <div class="card list">${friends.length ? friends.map(friendRow).join("") : `<div class="sub small">No friends yet. Add some below.</div>`}</div>
+      ${others.length ? `<h2>People you may know</h2><div class="card list">${others.map(otherRow).join("")}</div>` : ""}
       <div class="sub small" style="margin-top:14px">Star a friend to make them a favorite. You can get notified when favorites post (see Settings).</div>`;
+    }
 
-    const on = (attr, fn) => el.querySelectorAll(`[data-${attr}]`).forEach((b) => b.onclick = () => fn(b.dataset[attr]));
+    if (!$("#friendSearch", el)) {
+      el.innerHTML = `<input class="search" id="friendSearch" placeholder="Search friends and people" autocomplete="off" />
+        <div id="friendsBody"></div>`;
+      $("#friendSearch", el).addEventListener("input", (e) => { friendQuery = e.target.value; renderFriends(); });
+    }
+    const bodyEl = $("#friendsBody", el);
+    bodyEl.innerHTML = body;
+
+    const on = (attr, fn) => bodyEl.querySelectorAll(`[data-${attr}]`).forEach((b) => b.onclick = () => fn(b.dataset[attr]));
     on("request", (id) => {
       state.requests.push({ from: state.me, to: id, at: Date.now() });
       if (settingsFor(id).requests) notify(id, "request", `${user(state.me).name} sent you a friend request`);
@@ -487,11 +584,111 @@
       setFav(state.me, id, false); setFav(id, state.me, false);
       save(); render();
     });
-    bindStars(el);
-    $("#friendSearch", el).addEventListener("input", (e) => {
-      const q = e.target.value.trim().toLowerCase().replace(/^@/, "");
-      $("#addList", el).querySelectorAll(".person").forEach((p) => p.classList.toggle("hidden", !!q && !p.dataset.name.includes(q)));
-    });
+    bindStars(bodyEl);
+  }
+  let friendQuery = "";
+
+  // ---------- replies ----------
+  // A post's id is "<userId>@<timestamp>". Replies point at it, and move along
+  // when someone edits tonight's post.
+  const pid = (p) => p.userId + "@" + p.at;
+  const findPost = (id) => state.posts.find((p) => pid(p) === id);
+  const repliesFor = (id) => state.replies.filter((r) => r.post === id).sort((a, b) => a.at - b.at);
+
+  function replyBar(p) {
+    const rs = repliesFor(pid(p));
+    const last = rs[rs.length - 1];
+    return `<div class="reply-bar">
+      <button class="reply-btn" data-thread="${pid(p)}" aria-label="Reply">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/></svg>
+        <span>${rs.length || "Reply"}</span></button>
+      ${last ? `<span class="reply-peek"><b>${esc(user(last.userId).name)}</b> ${esc(last.text)}</span>` : ""}
+    </div>`;
+  }
+
+  // The post plus its replies, like a tweet's thread.
+  // Replies open as their own page (Sam, 2026-11-18): "‹ Feed" back link, the
+  // post on top with a bigger comment, the replies, and a reply box pinned to
+  // the bottom. The Feed tab stays highlighted while it's open.
+  let threadId = null, threadFlash = false;
+  function threadPost(id) {
+    let p = findPost(id);
+    // An alert can point at a post that was later changed; show that person's post tonight instead.
+    if (!p || nightKey(p.at) !== tonight()) {
+      const uid = id.split("@")[0];
+      p = tonightsPosts().find((x) => x.userId === uid);
+    }
+    return p;
+  }
+  function openThread(id, opts = {}) {
+    const p = threadPost(id);
+    closeSheet();
+    if (!p) { toast("That post is from an earlier night"); return; }
+    const canSee = p.userId === state.me || friendIds(state.me).has(p.userId);
+    if (!canSee) { toast("Only friends can see that post"); return; }
+    threadId = pid(p); threadFlash = !!opts.highlight;
+    showTab("thread");
+    $("#tab-thread").scrollTop = 0;
+  }
+  function renderThread() {
+    const el = $("#tab-thread");
+    const old = $("#replyText", el), draft = old && old.dataset.post === threadId ? old.value : "";
+    const p = threadId && threadPost(threadId);
+    const canSee = p && (p.userId === state.me || friendIds(state.me).has(p.userId));
+    if (!canSee) {
+      el.innerHTML = `<button class="back-link" id="threadBack">‹ Feed</button><div class="empty">This post isn't available anymore.</div>`;
+      $("#threadBack").onclick = () => showTab("feed");
+      return;
+    }
+    threadId = pid(p);
+    const u = user(p.userId), rs = repliesFor(threadId);
+    el.innerHTML = `
+      <div class="thread-page">
+        <button class="back-link" id="threadBack">‹ Feed</button>
+        <div class="thread-post ${threadFlash ? "flash" : ""}" data-post="${threadId}">${postBody(p)}</div>
+        <h2>${rs.length} ${rs.length === 1 ? "reply" : "replies"}</h2>
+        <div class="replies">${rs.map((r) => `<div class="reply"><div class="reply-body">
+            <div class="reply-head"><b>${r.userId === state.me ? "You" : esc(user(r.userId).name)}</b><span class="sub small">${ago(r.at)}</span></div>
+            <div class="reply-text">${esc(r.text)}</div></div></div>`).join("")
+          || `<div class="sub small">No replies yet. Start the conversation.</div>`}</div>
+      </div>
+      <div class="reply-compose">
+        <textarea class="comment" id="replyText" data-post="${threadId}" rows="2" placeholder="Reply to ${u.id === state.me ? "your friends" : esc(u.name)}…"></textarea>
+        <div class="reply-compose-row"><span class="small counter" id="replyCount">0/${COMMENT_WORDS} words</span>
+          <button class="btn primary small" id="sendReply" disabled>Reply</button></div>
+      </div>`;
+    threadFlash = false;
+    $("#threadBack").onclick = () => showTab("feed");
+    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
+    const ta = $("#replyText"), cnt = $("#replyCount"), send = $("#sendReply");
+    const sync = () => {
+      if (wordCount(ta.value) > COMMENT_WORDS) ta.value = limitWords(ta.value, COMMENT_WORDS);
+      const n = wordCount(ta.value);
+      cnt.textContent = n + "/" + COMMENT_WORDS + " words";
+      cnt.classList.toggle("full", n >= COMMENT_WORDS);
+      send.disabled = !n;
+    };
+    ta.value = draft; sync();
+    ta.addEventListener("input", sync);
+    send.onclick = () => {
+      const text = ta.value.trim();
+      if (!text) return;
+      const postId = pid(p);
+      // Tell the post's owner and anyone else already in the thread.
+      const people = new Set([p.userId, ...rs.map((r) => r.userId)]);
+      people.delete(state.me);
+      state.replies.push({ post: postId, userId: state.me, text, at: Date.now() });
+      const me = user(state.me).name;
+      for (const to of people) {
+        if (!settingsFor(to).replies) continue;
+        const what = to === p.userId ? "your post" : `${u.name}'s post`;
+        notify(to, "reply", `${me} replied to ${what}: "${text.length > 60 ? text.slice(0, 57) + "…" : text}"`, { post: postId, barId: p.barId });
+      }
+      save();
+      ta.value = "";
+      render();
+      el.scrollTop = el.scrollHeight;
+    };
   }
 
   // ---------- favorites ----------
@@ -514,7 +711,7 @@
 
   // ---------- notification settings ----------
   const DEFAULT_SETTINGS = {
-    favPosts: true,        // a favorite posts where they're rolling
+    favPosts: true,        // a favorite posts where they're headed
     anyPosts: false,       // any friend posts
     barCrowd: true,        // a bar hits N or more of my friends tonight
     crowdSize: 3,
@@ -522,6 +719,7 @@
     switched: true,        // a friend changes tonight's bar
     hyped: false,          // a friend maxes out the excitement meter
     requests: true,        // friend requests and accepts
+    replies: true,         // replies to my post or a thread I'm in
     reminder: false,       // nudge me to post if I haven't yet
     reminderTime: "20:00",
     browser: false,        // also show browser notifications
@@ -541,10 +739,10 @@
       if (state.seen[opts.key]) return;
       state.seen[opts.key] = 1;
     }
-    state.notifications.push({ to, kind, text, barId: opts.barId || null, at: opts.at || Date.now(), read: false });
+    state.notifications.push({ to, kind, text, barId: opts.barId || null, post: opts.post || null, at: opts.at || Date.now(), read: false });
     const s = settingsFor(to);
     if (!opts.quiet && s.browser && "Notification" in window && Notification.permission === "granted") {
-      try { new Notification("Rolling" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
+      try { new Notification("Word" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
     }
   }
 
@@ -557,15 +755,16 @@
     const postsTonight = state.posts.filter((p) => nightKey(p.at) === night);
     for (const fid of friendIds(post.userId)) {
       const s = settingsFor(fid);
-      const theirs = postsTonight.find((p) => p.userId === fid);
+      const theirs = postsTonight.find((p) => p.userId === fid && p.at <= post.at);
       const fav = isFav(fid, post.userId);
-      const base = Object.assign({ barId: bar.id }, opts);
+      // Alerts about a friend link to their post; the crowd alert links to the bar.
+      const base = Object.assign({ barId: bar.id, post: pid(post) }, opts);
       if (prev && prev.barId !== post.barId) {
         if (s.switched) notify(fid, "switch", `${poster.name} switched from ${BAR_BY_ID[prev.barId].name} to ${bar.name}`, base);
       } else if (!prev && s.sameBar && theirs && theirs.barId === post.barId) {
-        notify(fid, "same", `${poster.name} is rolling to ${bar.name} too`, base);
+        notify(fid, "same", `${poster.name} is headed to ${bar.name} too`, base);
       } else if (!prev && ((fav && s.favPosts) || s.anyPosts)) {
-        notify(fid, fav ? "fav" : "post", `${poster.name} is rolling to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
+        notify(fid, fav ? "fav" : "post", `${poster.name} is headed to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
       }
       if (s.hyped && post.excitement >= 95 && !(prev && prev.excitement >= 95)) {
         notify(fid, "hype", `${poster.name} is ${hypeLabel(post.excitement).toLowerCase()} for ${bar.name} tonight`, Object.assign({ key: `hype:${fid}:${post.userId}:${night}` }, base));
@@ -574,7 +773,7 @@
         const myFriends = friendIds(fid);
         const n = postsTonight.filter((p) => p.barId === post.barId && myFriends.has(p.userId)).length;
         if (n >= s.crowdSize) {
-          notify(fid, "crowd", `${n} of your friends are rolling to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base));
+          notify(fid, "crowd", `${n} of your friends are headed to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base, { post: null }));
         }
       }
     }
@@ -588,7 +787,7 @@
     let nowMin = d.getHours() * 60 + d.getMinutes();
     if (d.getHours() < 6) nowMin += 24 * 60;
     if (nowMin >= timeKey(s.reminderTime)) {
-      notify(state.me, "reminder", "You haven't posted yet tonight. Where are you rolling?", { key: `rem:${state.me}:${tonight()}` });
+      notify(state.me, "reminder", "You haven't posted yet tonight. What's the word? Where are you headed?", { key: `rem:${state.me}:${tonight()}` });
       save();
     }
   }
@@ -600,14 +799,14 @@
     b.classList.toggle("hidden", !n);
   }
 
-  const NOTE_ICON = { fav: "★", post: "🍻", same: "🤝", switch: "↪", crowd: "🔥", hype: "⚡", request: "👋", accept: "✓", reminder: "⏰" };
+  const NOTE_ICON = { reply: "💬", fav: "★", post: "🍻", same: "🤝", switch: "↪", crowd: "🔥", hype: "⚡", request: "👋", accept: "✓", reminder: "⏰" };
   function openInbox() {
     const notes = myNotes();
     openSheet(`
       <h3>Notifications</h3>
       <div class="sub">${notes.length ? "Tonight and recent" : ""}</div>
       <div class="notes">${notes.length ? notes.slice(0, 40).map((n) => `
-        <button class="note ${n.read ? "" : "unread"}" ${n.barId ? `data-bar="${n.barId}"` : n.kind === "request" ? 'data-goto="friends"' : ""}>
+        <button class="note ${n.read ? "" : "unread"}" ${n.post ? `data-post="${n.post}"` : n.barId ? `data-bar="${n.barId}"` : n.kind === "request" ? 'data-goto="friends"' : n.kind === "reminder" ? 'data-compose="1"' : ""}>
           <span class="note-ico">${NOTE_ICON[n.kind] || "•"}</span>
           <span class="note-body"><span>${esc(n.text)}</span><span class="sub small">${ago(n.at)}</span></span>
         </button>`).join("") : `<div class="empty">Nothing yet. Choose what you hear about in Settings.</div>`}</div>
@@ -618,6 +817,8 @@
     $("#inboxSettings").onclick = () => { closeSheet(); showTab("settings"); };
     document.querySelectorAll(".note[data-bar]").forEach((x) => x.onclick = () => { closeSheet(); showTab("map"); focusBar(x.dataset.bar); });
     document.querySelectorAll(".note[data-goto]").forEach((x) => x.onclick = () => { closeSheet(); showTab(x.dataset.goto); });
+    document.querySelectorAll(".note[data-post]").forEach((x) => x.onclick = () => openThread(x.dataset.post, { highlight: true }));
+    document.querySelectorAll(".note[data-compose]").forEach((x) => x.onclick = () => openComposer());
   }
   $("#bellBtn").addEventListener("click", openInbox);
   $("#gearBtn").addEventListener("click", () => showTab("settings"));
@@ -635,27 +836,28 @@
       </div>`;
     const browserState = !("Notification" in window) ? "This browser doesn't support notifications."
       : Notification.permission === "denied" ? "Blocked in your browser settings. Allow notifications for this site to turn this on."
-      : "Shows alerts while Rolling is open in a tab. Real push alerts come with the iPhone app.";
+      : "Shows alerts while Word is open in a tab. Real push alerts come with the iPhone app.";
 
     el.innerHTML = `
       <div class="page-head"><button class="btn small" id="settingsBack">‹ Back</button><h1>Settings</h1></div>
 
       <h2>Notify me when</h2>
       <div class="card settings">
-        ${toggle("favPosts", "A favorite posts", `When one of your favorites posts where they're rolling. ${favCount ? `You have ${favCount} favorite${favCount > 1 ? "s" : ""}.` : "Star friends below to pick favorites."}`)}
+        ${toggle("favPosts", "A favorite posts", `When one of your favorites posts where they're headed. ${favCount ? `You have ${favCount} favorite${favCount > 1 ? "s" : ""}.` : "Star friends below to pick favorites."}`)}
         ${toggle("anyPosts", "Any friend posts", "Every post from every friend. Can get busy on a Friday.")}
         ${toggle("barCrowd", "A bar fills up with friends", "Once a night per bar, when enough of your friends pick the same one.",
           `<div class="stepper" aria-label="How many friends"><button data-step="-1" aria-label="Fewer">−</button><b id="crowdSize">${s.crowdSize}</b><button data-step="1" aria-label="More">＋</button><span class="sub small">or more friends</span></div>`)}
         ${toggle("sameBar", "A friend picks my bar", "When someone posts the same bar you already posted tonight.")}
         ${toggle("switched", "A friend switches bars", "When a friend changes tonight's post to a different bar.")}
         ${toggle("hyped", "A friend is sending it", "When a friend maxes out the excitement meter.")}
+        ${toggle("replies", "Replies", "When someone replies to your post, or to a post you replied to.")}
         ${toggle("requests", "Friend requests", "When someone sends you a request or accepts yours.")}
         ${toggle("reminder", "Remind me to post", "Once a night, if you haven't posted by", `<select class="select inline" id="reminderTime">${TIMES.filter((t) => timeKey(t) <= timeKey("23:00")).map((t) => `<option value="${t}" ${t === s.reminderTime ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select>`)}
       </div>
 
       <h2>Favorites</h2>
       <div class="card list">${friends.length ? friends.map((u) => `
-        <div class="person">${avatar(u, "sm")}<div class="meta"><div class="n">${esc(u.name)}</div></div><div class="actions">${starBtn(u.id)}</div></div>`).join("")
+        <div class="person"><div class="meta"><div class="n">${esc(u.name)}</div></div><div class="actions">${starBtn(u.id)}</div></div>`).join("")
         : `<div class="sub small">Add friends first, then star your favorites here.</div>`}</div>
 
       <h2>How you get them</h2>
@@ -692,6 +894,57 @@
     };
   }
 
+  // ---------- profile ----------
+  // First version, kept simple on purpose: who you are, a few counts, your usual spots.
+  function renderProfile() {
+    const el = $("#tab-profile");
+    const me = user(state.me);
+    const mine = state.posts.filter((p) => p.userId === state.me);
+    const nights = new Set(mine.map((p) => nightKey(p.at))).size;
+    const counts = {};
+    for (const p of mine) {
+      counts[p.barId] = (counts[p.barId] || 0) + 1;
+      for (const h of p.history || []) counts[h.barId] = (counts[h.barId] || 0) + 1;
+    }
+    const switches = mine.reduce((a, p) => a + (p.history || []).length, 0);
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    el.innerHTML = `
+      <div class="profile-head">
+        <div class="profile-name">${esc(me.name)}</div>
+        <div class="sub">@${esc(me.handle)}</div>
+        <button class="btn small" id="editProfile">Edit profile</button>
+      </div>
+      <label class="viewas card" title="No sign-in yet: pick which demo user you are">
+        <span>Demo: viewing as</span><select id="viewAs"></select>
+      </label>
+      <div class="card stats">
+        <div><b>${nights}</b><span>nights out</span></div>
+        <div><b>${Object.keys(counts).length}</b><span>bars</span></div>
+        <div><b>${switches}</b><span>switches</span></div>
+      </div>
+      <h2>Your usual spots</h2>
+      <div class="card list">${top.length ? top.map(([id, n], i) => `
+        <button class="spot-row" data-bar="${id}"><span class="rank top">${i + 1}</span>
+          <span class="info"><div class="n">${esc(BAR_BY_ID[id].name)}</div><div class="sub small">${n} night${n > 1 ? "s" : ""}</div></span></button>`).join("")
+        : `<div class="sub small">Post where you're headed and your favorite bars show up here.</div>`}</div>`;
+    renderViewAs();
+    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
+    $("#editProfile").onclick = () => {
+      openSheet(`<h3>Edit profile</h3><div class="sub">Your friends see this.</div>
+        <label class="field-label" for="pfName">Name</label><input class="search" id="pfName" maxlength="30" value="${esc(me.name)}" />
+        <label class="field-label" for="pfHandle">Handle</label><input class="search" id="pfHandle" maxlength="20" value="${esc(me.handle)}" />
+        <div class="small counter" id="pfErr"></div>
+        <div class="sheet-actions"><button class="btn" id="pfCancel">Cancel</button><button class="btn primary" id="pfSave">Save</button></div>`);
+      $("#pfCancel").onclick = closeSheet;
+      $("#pfSave").onclick = () => {
+        const name = $("#pfName").value.trim(), handle = $("#pfHandle").value.trim().replace(/^@/, "").toLowerCase();
+        if (!name || !/^[a-z0-9_.]{2,20}$/.test(handle)) { $("#pfErr").textContent = "Add a name, and a handle of 2 to 20 letters, numbers, _ or ."; return; }
+        if (state.users.some((u) => u.id !== me.id && u.handle === handle)) { $("#pfErr").textContent = "@" + handle + " is taken."; return; }
+        me.name = name; me.handle = handle; save(); closeSheet(); renderViewAs(); render(); toast("Profile saved");
+      };
+    };
+  }
+
   // ---------- render ----------
   function render() {
     renderBadge();
@@ -700,6 +953,13 @@
     if (currentTab === "feed") renderFeed();
     if (currentTab === "map") renderMap();
     if (currentTab === "friends") renderFriends();
+    if (currentTab === "profile") renderProfile();
+    if (currentTab === "thread") renderThread();
+  }
+
+  // Rename (Rolling -> Word): reword alerts saved before the rename.
+  for (const n of state.notifications || []) {
+    n.text = n.text.replace(/ (is|are) rolling to /, " $1 headed to ").replace("Where are you rolling?", "What's the word? Where are you headed?");
   }
 
   // First run: build the starting inbox by replaying tonight's posts and pending requests.
@@ -708,6 +968,22 @@
     const posts = tonightsPosts().sort((a, b) => a.at - b.at);
     for (const p of posts) onPost(p, null, { quiet: true, at: p.at });
     for (const r of state.requests) if (settingsFor(r.to).requests) notify(r.to, "request", `${user(r.from).name} sent you a friend request`, { quiet: true, at: r.at });
+    save();
+  }
+
+  if (!state.seen["demo:switcher:" + tonight()] && !tonightsPosts().some((p) => p.userId === "u_nick")) {
+    const nick = window.ROLLING_SEED().posts.find((p) => p.userId === "u_nick" && p.history);
+    if (nick && user("u_nick")) state.posts.push(nick);
+    state.seen["demo:switcher:" + tonight()] = 1;
+    save();
+  }
+  if (seedReplies) {
+    const tp = (uid) => tonightsPosts().find((p) => p.userId === uid);
+    const add = (uid, onUser, text, mins) => { const p = tp(onUser); if (p) state.replies.push({ post: pid(p), userId: uid, text, at: Math.min(Date.now(), p.at + mins * 60000) }); };
+    add("u_tyler", "u_jake", "already there in spirit", 3);
+    add("u_olivia", "u_jake", "save me a spot by the window", 6);
+    add("u_emma", "u_maddie", "wear the red top 👀", 4);
+    add("u_nick", "u_ryan", "might join late", 20);
     save();
   }
 

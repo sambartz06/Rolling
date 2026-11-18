@@ -13,7 +13,7 @@
   --shadow: 0 1px 2px rgba(60, 10, 12, .06), 0 6px 18px rgba(60, 10, 12, .06);
   --radius: 16px;
   --tabbar-h: 68px;
-  --topbar-h: 58px;
+  --topbar-h: 64px;
   --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -33,11 +33,13 @@ button { cursor: pointer; }
 .topbar { height: calc(var(--topbar-h) + env(safe-area-inset-top)); display: flex; align-items: center;
   justify-content: space-between; padding: env(safe-area-inset-top) 16px 0; background: var(--red);
   color: var(--white); position: relative; z-index: 500; }
-.brand { font-family: var(--display); font-weight: 900; font-size: 26px; letter-spacing: -0.8px; font-style: italic; }
-.brand .dot { color: var(--white); opacity: .6; }
-.viewas { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,.8); }
-.viewas select { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35); color: var(--white);
-  border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+/* Wordmark (Sam, 2026-11-18): "WORD", upright, no period, extra-bold, stretched across most of the bar. */
+.brand { flex: 1; min-width: 0; margin: 0 14px 0 0; height: 46px; display: flex; align-items: center; }
+.brand svg { width: 100%; height: 100%; overflow: visible; }
+.brand text { font-family: var(--display); font-weight: 900; font-size: 52px; fill: var(--white); }
+.viewas { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--muted); padding: 12px 16px; margin-bottom: 18px; }
+.viewas select { background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 600;
+  border-radius: 999px; padding: 6px 12px; font-size: 14px; }
 .viewas select option { color: var(--text); }
 
 main { position: absolute; top: calc(var(--topbar-h) + env(safe-area-inset-top)); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); left: 0; right: 0; }
@@ -78,9 +80,6 @@ h2:first-child { margin-top: 0; }
 .btn.ghost { color: var(--muted); }
 .btn.small { padding: 6px 12px; font-size: 13px; }
 
-.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  font-weight: 800; color: var(--white); flex: none; font-size: 16px; }
-.avatar.sm { width: 30px; height: 30px; font-size: 12px; }
 
 /* Feed */
 .mine { background: var(--red); border-color: var(--red); color: var(--white); box-shadow: 0 8px 22px rgba(197,5,12,.25); }
@@ -173,14 +172,14 @@ textarea.comment:focus { border-color: var(--red); }
 .sheet-actions .btn { flex: 1; padding: 13px; }
 
 /* Map */
-.count-marker { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--red); color: var(--white); font-family: var(--display); font-weight: 800; font-size: 16px;
-  border: 3px solid var(--white); box-shadow: 0 4px 12px rgba(60,10,12,.35); }
+.count-marker { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--red); color: var(--white); font-family: var(--display); font-weight: 800; font-size: 13px;
+  border: 2.5px solid var(--white); box-sizing: border-box; box-shadow: 0 4px 12px rgba(60,10,12,.35); }
 .count-marker.me { box-shadow: 0 0 0 3px var(--red), 0 4px 12px rgba(60,10,12,.35); }
-.count-marker.only-me { background: var(--white); color: var(--red); border-color: var(--red); font-size: 11px; }
+.count-marker.only-me { background: var(--white); color: var(--red); border-color: var(--red); font-size: 9px; }
 .bar-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 3px solid var(--red); opacity: .8; }
 .map-legend { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 450; display: flex;
-  justify-content: space-between; align-items: center; gap: 8px; pointer-events: none; }
+  justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none; }
 .map-legend > * { pointer-events: auto; }
 .pill { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 13px;
   box-shadow: var(--shadow); }
@@ -212,13 +211,11 @@ textarea.comment:focus { border-color: var(--red); }
 
 /* Header actions: bell + settings */
 .top-actions { display: flex; align-items: center; gap: 4px; }
-.top-actions .viewas { margin-right: 4px; }
 .icon-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; border: 0; background: transparent;
   color: var(--white); display: grid; place-items: center; }
 .icon-btn:hover { background: rgba(255,255,255,.14); }
 .icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
 .icon-btn .badge { top: 2px; left: auto; right: 0; background: var(--white); color: var(--red); border-color: var(--red); }
-@media (max-width: 440px) { .viewas span { display: none; } }
 
 /* Favorites */
 .star { width: 34px; height: 30px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--bg);
@@ -257,3 +254,111 @@ textarea.comment:focus { border-color: var(--red); }
 .note-ico { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center;
   background: var(--bg); border: 1.5px solid var(--line); color: var(--red); font-size: 14px; font-weight: 800; }
 .note-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* Replies (Twitter-style thread) */
+.card.post { cursor: pointer; }
+.card.post:hover { border-color: #e0d2d3; }
+.reply-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; min-width: 0; }
+.reply-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 0;
+  color: var(--muted); font-weight: 600; font-size: 13px; flex: none; }
+.reply-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; }
+.reply-btn:hover { color: var(--red); }
+.reply-peek { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.reply-peek b { color: var(--text); }
+.mine-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.thread-post { padding: 4px 0 12px; border-bottom: 1px solid var(--line); }
+.thread-post.flash { animation: flash 1.4s ease-out; border-radius: 12px; }
+@keyframes flash { from { background: var(--red-tint); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .thread-post.flash { animation: none; } }
+.replies { display: flex; flex-direction: column; }
+.reply { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.reply:last-child { border-bottom: 0; }
+.reply-body { flex: 1; min-width: 0; }
+.reply-text { margin-top: 2px; overflow-wrap: anywhere; }
+.reply-compose { margin-top: 12px; }
+.reply-compose textarea.comment { min-height: 64px; }
+.reply-compose-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Friends' spots on the map: color (pale to deep red) and a little size = how often your friends go */
+.spot { border-radius: 50%; border: 1.5px solid var(--white); box-sizing: border-box; box-shadow: 0 1px 3px rgba(60,10,12,.3); }
+.legend-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.heat-key { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; box-shadow: var(--shadow); }
+.heat-key .ramp { width: 56px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgb(243,185,187), var(--red) 60%, rgb(122,0,6)); }
+.spot-note { font-size: 13px; color: var(--red); font-weight: 600; margin: -8px 0 4px; }
+#friendsBody > h2:first-child { margin-top: 18px; }
+
+/* Post card layout: header, small bar + time, big comment, replies, meter last */
+.card.post { display: flex; flex-direction: column; gap: 8px; }
+.post-head { display: flex; gap: 10px; align-items: flex-start; }
+.post-meta { flex: 1; min-width: 0; }
+.post-meta .line1 { display: flex; justify-content: space-between; gap: 8px; }
+.post-meta .who { font-weight: 700; }
+.post-meta .time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.post-where { font-size: 12.5px; color: var(--muted); }
+.post-where b { color: var(--red); font-weight: 700; cursor: pointer; }
+.post-text { font-size: 18px; line-height: 1.35; font-weight: 500; overflow-wrap: anywhere; }
+.card.post .reply-bar { margin-top: 0; }
+.post-meter { border-top: 1px solid var(--line); padding-top: 8px; }
+.post-meter .meter { margin-top: 0; }
+.thread-post { display: flex; flex-direction: column; gap: 8px; }
+
+/* Your own post uses the same layout, in red */
+.mine .label { margin-bottom: 8px; }
+.mine .post-where, .mine .post-meta .time, .mine .reply-btn, .mine .reply-peek { color: rgba(255,255,255,.85); }
+.mine .post-where b, .mine .reply-peek b, .mine .fav-star { color: var(--white); }
+.mine .post-meta .who { color: var(--white); }
+.mine .post-meter { border-top-color: rgba(255,255,255,.3); }
+.mine .reply-bar { margin-top: 8px; }
+.mine .post-text { margin-top: 8px; }
+.mine .post-meter { margin-top: 8px; }
+
+/* Bar-switch saga: earlier picks crossed out, current bar last */
+.post-where { line-height: 1.6; }
+.was { border: 0; background: none; padding: 0; font: inherit; color: var(--muted); text-decoration: line-through;
+  text-decoration-thickness: 1.5px; cursor: pointer; }
+.was:hover, .was[aria-expanded="true"] { color: var(--red); }
+.post-where .arrow { margin: 0 4px; color: var(--muted); }
+.was-box { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.was-title { font-size: 13px; }
+.was-title span { color: var(--muted); }
+.was-box .meter { margin-top: 6px; }
+.mine .was, .mine .post-where .arrow { color: rgba(255,255,255,.7); }
+.mine .was-box { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); }
+.mine .was-title span { color: rgba(255,255,255,.8); }
+.was-comment { margin-top: 4px; font-size: 14px; overflow-wrap: anywhere; }
+.was-comment.none { color: var(--muted); font-style: italic; }
+.mine .was-comment.none { color: rgba(255,255,255,.75); }
+
+/* Profile */
+.profile-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 10px 0 16px; }
+.profile-name { font-family: var(--display); font-size: 26px; font-weight: 800; }
+.profile-head .btn { margin-top: 10px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; padding: 14px 6px; }
+.stats > div { display: flex; flex-direction: column; }
+.stats > div + div { border-left: 1px solid var(--line); }
+.stats b { font-family: var(--display); font-size: 24px; color: var(--red); font-variant-numeric: tabular-nums; }
+.stats span { font-size: 12px; color: var(--muted); }
+.spot-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--line); padding: 10px 0; }
+.spot-row:last-child { border-bottom: 0; }
+.spot-row .rank { width: 22px; font-family: var(--display); font-weight: 800; color: var(--red); font-size: 17px; }
+.spot-row .n { font-weight: 600; }
+
+/* No profile pictures (Sam, 2026-11-18): names carry the rows. */
+.goer-names { font-weight: 700; font-size: 15px; margin: 8px 0 10px; }
+.waiting .w { font-size: 14px; }
+.profile-head { padding-top: 12px; }
+
+/* Replies page (Sam, 2026-11-18): full screen, reply box pinned to the bottom. */
+#tab-thread.active { display: flex; flex-direction: column; padding-bottom: 0; }
+.thread-page { flex: 1; }
+.back-link { border: 0; background: none; padding: 0 0 10px; font: 700 15px var(--body); color: var(--red); cursor: pointer; }
+.thread-page .post-text { font-size: 21px; line-height: 1.3; }
+.thread-page h2 { margin-top: 16px; }
+.thread-page .reply { padding: 10px 0 10px 12px; border-left: 2px solid var(--red-tint); border-bottom: 0; }
+.thread-page .reply + .reply { border-top: 1px solid var(--line); }
+.reply-head { display: flex; justify-content: space-between; gap: 8px; }
+#tab-thread .reply-compose { position: sticky; bottom: 0; margin: 12px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg); border-top: 1px solid var(--line); }
