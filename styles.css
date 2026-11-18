@@ -33,11 +33,10 @@ button { cursor: pointer; }
 .topbar { height: calc(var(--topbar-h) + env(safe-area-inset-top)); display: flex; align-items: center;
   justify-content: space-between; padding: env(safe-area-inset-top) 16px 0; background: var(--red);
   color: var(--white); position: relative; z-index: 500; }
-/* Wordmark (Sam, 2026-11-18): big, extra-bold, stretched across most of the bar. */
+/* Wordmark (Sam, 2026-11-18): "Word", upright, no period, extra-bold, stretched across most of the bar. */
 .brand { flex: 1; min-width: 0; margin: 0 14px 0 0; height: 46px; display: flex; align-items: center; }
 .brand svg { width: 100%; height: 100%; overflow: visible; }
-.brand text { font-family: var(--display); font-weight: 900; font-size: 52px; font-style: italic; fill: var(--white); }
-.brand .dot { fill: var(--white); opacity: .6; }
+.brand text { font-family: var(--display); font-weight: 900; font-size: 52px; fill: var(--white); }
 .viewas { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--muted); padding: 12px 16px; margin-bottom: 18px; }
 .viewas select { background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 600;
   border-radius: 999px; padding: 6px 12px; font-size: 14px; }
