@@ -436,16 +436,15 @@ textarea.comment:focus { border-color: var(--red); }
 .street { position: relative; flex: 1 1 auto; min-width: 96px; height: 44px; align-self: flex-end; margin: 0 8px 6px 0; }
 .street svg { position: absolute; bottom: 0; }
 
-/* The walker: a white silhouette with jointed hips, knees, shoulders and elbows.
+/* The walker: flat style matching the bar, with jointed hips, knees, shoulders and elbows.
    Far-side limbs are a touch dimmer so he reads as 3D. */
-.walker { width: 16px; height: 32px; left: 0; overflow: visible; animation: stroll 9s linear infinite; }
-.walker path, .walker circle { fill: var(--white); }
-.walker .far path, .walker .far circle { fill: #F6C9CB; }
+.walker { width: 15px; height: 30px; left: 0; overflow: visible; animation: stroll 9s linear infinite; }
 .walker g { transform-box: view-box; }
 .walker .leg { transform-origin: 12.1px 24px; animation: thigh 1s linear infinite; }
 .walker .shin { transform-origin: 12.1px 34.2px; animation: knee 1s linear infinite; }
 .walker .arm { transform-origin: 12.2px 11px; animation: shoulder 1s ease-in-out infinite; }
 .walker .fore { transform-origin: 12px 18px; animation: elbow 1s ease-in-out infinite; }
+.walker .far { opacity: .72; }
 .walker .far, .walker .far .shin, .walker .far .fore { animation-delay: -.5s; }
 .walker .bob { animation: bob .5s ease-in-out infinite; }
 @keyframes thigh { 0%, 100% { transform: rotate(20deg); } 25% { transform: rotate(-2deg); } 50% { transform: rotate(-24deg); } 75% { transform: rotate(2deg); } }
@@ -457,19 +456,11 @@ textarea.comment:focus { border-color: var(--red); }
   0% { left: 0; opacity: 0; }
   5% { opacity: 1; }
   86% { left: calc(100% - 52px); opacity: 1; }
-  93%, 100% { left: calc(100% - 46px); opacity: 0; }
+  93%, 100% { left: calc(100% - 31px); opacity: 0; } /* fades out at the green door */
 }
 
-/* The bar: brick front, neon BAR sign, striped awning, lit window and door. */
-.pub { right: 0; width: 52px; height: 38px; }
-.pub .wall, .pub .awn-a { fill: var(--white); }
-.pub .bricks { stroke: var(--red); stroke-width: .5; opacity: .35; fill: none; }
-.pub .sign { fill: var(--red-dark); stroke: #FFB3B6; stroke-width: .7; }
-.pub text { fill: #FFF3F3; font: 900 7.4px var(--display); letter-spacing: 1px; filter: drop-shadow(0 0 1.2px #FF8A8F); }
-.pub .awn-b { fill: var(--red-dark); }
-.pub .frame { fill: var(--red-dark); }
-.pub .glow { fill: #FFD98A; }
-.pub .mugs { fill: #C77E0E; }
+/* The bar: flat style, four colors (oxblood, gold, cream, green); see the Style Lab. */
+.pub { right: 0; width: 46px; height: 40px; }
 
 @media (prefers-reduced-motion: reduce) {
   .walker, .walker g { animation: none; }
@@ -491,3 +482,12 @@ input[type="time"].select { min-height: 48px; font-size: 16px; }
 .mine .status.out { background: rgba(255,255,255,.2); color: var(--white); }
 .mine .status.bail { background: transparent; color: var(--white); border-color: rgba(255,255,255,.55); }
 .mine .post-where.bailed b { color: rgba(255,255,255,.75); }
+
+/* Banner art (Sam, 2026-11-18): flat style, four colors at most */
+:root { --ill-ox: #3B1013; --ill-gold: #E9B44C; --ill-cream: #FFF3E0; --ill-green: #2F6B4A; }
+.c-ox { fill: var(--ill-ox); }
+.c-gold { fill: var(--ill-gold); }
+.c-cream { fill: var(--ill-cream); }
+.c-green { fill: var(--ill-green); }
+.s-ox { fill: none; stroke: var(--ill-ox); stroke-width: .55; opacity: .55; }
+.pub-word { font: 900 5.2px var(--display); letter-spacing: .9px; }
