@@ -302,3 +302,14 @@ textarea.comment:focus { border-color: var(--red); }
 .post-meter { border-top: 1px solid var(--line); padding-top: 8px; }
 .post-meter .meter { margin-top: 0; }
 .thread-post { display: flex; flex-direction: column; gap: 8px; }
+
+/* Your own post uses the same layout, in red */
+.mine .label { margin-bottom: 8px; }
+.mine .post-where, .mine .post-meta .time, .mine .reply-btn, .mine .reply-peek { color: rgba(255,255,255,.85); }
+.mine .post-where b, .mine .reply-peek b, .mine .fav-star { color: var(--white); }
+.mine .post-meta .who { color: var(--white); }
+.mine .post-meter { border-top-color: rgba(255,255,255,.3); }
+.mine .avatar { box-shadow: 0 0 0 2px var(--white); }
+.mine .reply-bar { margin-top: 8px; }
+.mine .post-text { margin-top: 8px; }
+.mine .post-meter { margin-top: 8px; }

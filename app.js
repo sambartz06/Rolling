@@ -196,11 +196,9 @@
     if (mine) {
       const b = BAR_BY_ID[mine.barId];
       html += `<div class="card mine">
-        <div class="label">You're rolling to</div>
-        <div class="bar">${esc(b.name)}</div>
-        ${postDetails(mine)}
-        <div class="mine-actions"><button class="btn small" id="editMine">Change tonight's post</button>
-          <button class="btn small" data-thread="${pid(mine)}">💬 ${repliesFor(pid(mine)).length || ""} ${repliesFor(pid(mine)).length === 1 ? "reply" : "replies"}</button></div>
+        <div class="label">Your post tonight</div>
+        ${postBody(mine, { replies: true })}
+        <div class="mine-actions"><button class="btn small" id="editMine">Change tonight's post</button></div>
       </div>`;
     } else {
       html += `<div class="card mine">
@@ -298,18 +296,18 @@
       <div class="picked"><span><div class="n">${esc(b.name)}</div><div class="sub small">${esc(b.addr || b.type)}</div></span>
         <button class="btn small" id="changeBar">Change</button></div>
 
-      <label class="field-label" for="hype">Excitement</label>
-      <div class="hype">
-        <input type="range" id="hype" min="0" max="100" step="1" value="${draft.excitement}" />
-        <div class="hype-ends"><span>Low</span><b id="hypeLabel"></b><span>High</span></div>
-      </div>
-
       <label class="field-label" for="arrive">Getting there around</label>
       <select id="arrive" class="select">${TIMES.map((t) => `<option value="${t}" ${t === draft.arrive ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select>
 
       <label class="field-label" for="comment">What's the move?</label>
       <textarea class="comment" id="comment" placeholder="Pregame plans, a birthday, a drink special… give your friends a reason to pull up.">${esc(draft.comment || "")}</textarea>
       <div class="small counter" id="cc"></div>
+
+      <label class="field-label" for="hype">How excited are you?</label>
+      <div class="hype">
+        <input type="range" id="hype" min="0" max="100" step="1" value="${draft.excitement}" />
+        <div class="hype-ends"><span>Low</span><b id="hypeLabel"></b><span>High</span></div>
+      </div>
 
       <div class="sheet-actions">
         <button class="btn" id="cancel">Cancel</button>
