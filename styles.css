@@ -430,3 +430,35 @@ textarea.comment:focus { border-color: var(--red); }
   .auth { display: grid; place-items: center; }
 }
 @media (min-width: 900px) and (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+/* Top bar: a little guy walks from the WORD logo to the bar by the bell (Sam, 2026-11-18).
+   He loops every few seconds; with reduced motion he just stands by the logo. */
+.street { position: relative; flex: 1 1 auto; min-width: 84px; height: 36px; align-self: center; margin-right: 6px; }
+.street svg { position: absolute; bottom: 0; }
+.walker { width: 16px; height: 26px; left: 0; overflow: visible; animation: stroll 7s linear infinite; }
+.walker circle { fill: var(--white); }
+.walker line { stroke: var(--white); stroke-width: 2.6; stroke-linecap: round; }
+.walker .leg, .walker .arm { transform-box: view-box; }
+.walker .leg { transform-origin: 10px 19.5px; animation: swing .5s ease-in-out infinite alternate; }
+.walker .arm { transform-origin: 10.4px 11px; animation: swing .5s ease-in-out infinite alternate-reverse; }
+.walker .l2, .walker .a2 { animation-direction: alternate-reverse; }
+.walker .a2 { animation-direction: alternate; }
+.pub { right: 0; width: 40px; height: 32px; }
+.pub text { fill: var(--red); font: 900 6.4px var(--display); letter-spacing: .6px; }
+.pub path, .pub rect { fill: var(--white); }
+.pub .cut { fill: var(--red); }
+.pub .mug { fill: var(--white); }
+@keyframes swing { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+@keyframes stroll {
+  0% { left: 0; opacity: 0; }
+  6% { opacity: 1; }
+  84% { left: calc(100% - 58px); opacity: 1; }
+  92%, 100% { left: calc(100% - 50px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .walker, .walker .leg, .walker .arm { animation: none; }
+}
+/* Phone: the logo gives up a little room so the street fits. */
+@media (max-width: 899px) {
+  .brand { flex: 0 1 180px; margin-right: 10px; }
+}
