@@ -11,8 +11,13 @@ No install needed. Live site: https://sambartz06.github.io/Rolling/ (GitHub Page
 Or open `index.html` in a browser (Chrome or Safari).
 For the phone-sized view on a laptop, open dev tools and turn on device mode, or just narrow the window.
 
-Everything is saved in your browser (localStorage). There's no sign-in yet, so use
-**Viewing as** at the top to switch between mock users. **Settings > Reset demo data** restores the seed.
+**Accounts:** sign up with your name, @handle, email and password. Posts, replies, friends,
+favorites and notification settings are saved in Supabase (a hosted database), and only friends
+you accept can see your posts. Setup steps: [`supabase/SETUP.md`](supabase/SETUP.md).
+
+**Demo mode:** if `config.js` has no Supabase keys, the app runs on sample data saved in your
+browser, with **Viewing as** on the Profile tab to switch between sample users and
+**Settings > Reset demo data** to start over.
 
 ## What's here
 
@@ -31,8 +36,16 @@ A "night" runs 6 AM to 6 AM, so a 1 AM post still counts for tonight.
 ## Files
 
 - `index.html`, `styles.css`, `app.js`: the app (plain HTML/CSS/JS, no build step)
+- `backend.js`: reads and saves data in Supabase, and handles sign-in
+- `config.js`: the Supabase project address and public key (empty = demo mode)
+- `supabase/schema.sql`: database tables and security rules; `supabase/SETUP.md`: how to set it up
 - `bars.js`: 142 Madison bars, pubs, clubs and beer gardens from OpenStreetMap (see `scripts/fetch-bars.md`)
-- `data.js`: mock users, friendships and tonight's posts
-- `vendor/`: Leaflet 1.9.4 (map library)
+- `data.js`: sample users and posts for demo mode
+- `vendor/`: Leaflet 1.9.4 (map library) and supabase-js 2.118.0 (MIT)
+
+Notifications are worked out on your own device from what you can already see (friends' posts,
+replies, requests) and your own settings, so nobody else learns your settings or favorites.
+They show in the bell, and as browser notifications while the site is open. Push alerts to a
+locked phone come with the iPhone app.
 
 Map tiles: Esri World Light Gray (free, no key, attribution shown). Bar data © OpenStreetMap contributors (ODbL).
