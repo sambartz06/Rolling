@@ -57,9 +57,15 @@
     <!-- Bottom sheet, used for the post composer and for "who's going" on the map -->
     <div id="sheetBackdrop" class="backdrop hidden"></div>
     <div id="sheet" class="sheet hidden" role="dialog" aria-modal="true"></div>
+
+    <!-- Sign in / create account (live mode only) -->
+    <div id="auth" class="auth hidden"></div>
   </div>
 
   <script src="vendor/leaflet.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="backend.js"></script>
   <script src="bars.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>

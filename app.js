@@ -1,7 +1,10 @@
-/* Word ("what's the word?"): web prototype.
- * No build step and no backend: state lives in localStorage so it runs as a static
- * site (GitHub Pages) or by opening index.html. The data shapes (users, friendships,
- * requests, posts) are the ones a real backend would store. */
+/* Word ("what's the word?").
+ * No build step. Two modes:
+ *  - Live: config.js has Supabase keys. People sign in, and posts, replies, friends,
+ *    favorites and settings are saved in the database (see backend.js and
+ *    supabase/schema.sql). The app keeps a copy in `state` and refreshes it often.
+ *  - Demo: no keys. Sample data saved in this browser only, with a "Viewing as"
+ *    switcher instead of sign-in. */
 (function () {
   "use strict";
 
@@ -13,20 +16,41 @@
   const DAY = 24 * 3600 * 1000;
 
   // ---------- state ----------
-  let state = load();
-  // Demo convenience: if nobody has posted tonight (e.g. you open it tomorrow),
-  // refresh tonight's mock posts so the feed and map aren't empty.
-  if (!state.posts.some((p) => nightKey(p.at) === nightKey(Date.now()))) {
-    const fresh = window.ROLLING_SEED().posts.filter((p) => nightKey(p.at) === nightKey(Date.now()));
-    state.posts = state.posts.concat(fresh);
+  const API = window.WordBackend || { live: false };
+  const LIVE = API.live;
+  // posts: [{ id, userId, barId, at, excitement, arrive, comment, history }]
+  // replies: [{ id, post: <post id>, userId, text, at }]
+  // friendships: [[a, b, { by, at }]] (by = who sent the request)
+  let state = LIVE
+    ? { me: null, users: [], friendships: [], requests: [], posts: [], replies: [], favorites: {}, settings: {}, popularity: null }
+    : load();
+  let seedReplies = false;
+  if (!LIVE) {
+    // Demo convenience: if nobody has posted tonight (e.g. you open it tomorrow),
+    // refresh tonight's mock posts so the feed and map aren't empty.
+    if (!state.posts.some((p) => nightKey(p.at) === nightKey(Date.now()))) {
+      const fresh = window.ROLLING_SEED().posts.filter((p) => nightKey(p.at) === nightKey(Date.now()));
+      state.posts = state.posts.concat(fresh);
+    }
+    // Fields added in later versions; fill them in for older saved data.
+    state.favorites = state.favorites || { u_sam: ["u_jake", "u_maddie"] };
+    state.settings = state.settings || {};
+    state.seen = state.seen || {};
+    seedReplies = !state.replies;
+    state.replies = state.replies || [];
+    delete state.notifications; // alerts are worked out from the data now
+    ensureIds();
   }
-  // Fields added in later versions; fill them in for older saved data.
-  state.favorites = state.favorites || { u_sam: ["u_jake", "u_maddie"] };
-  state.settings = state.settings || {};
-  state.seen = state.seen || {};
-  // replies: [{ post: "<userId>@<timestamp>", userId, text, at }]
-  const seedReplies = !state.replies;
-  state.replies = state.replies || [];
+  // Demo posts used "<userId>@<timestamp>" as their id; keep that so saved replies still match.
+  function ensureIds() {
+    for (const p of state.posts) if (!p.id) p.id = p.userId + "@" + p.at;
+    for (const r of state.replies || []) if (!r.id) r.id = uuid();
+  }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+      (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
+  }
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE_KEY));
@@ -35,10 +59,24 @@
     return window.ROLLING_SEED();
   }
   function save() {
+    if (LIVE) return;
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
   }
+  // Save a change: the demo writes to this browser, live mode sends it to the
+  // database. The screen already shows the change; if saving fails we say so and
+  // reload what's really saved.
+  async function persist(send, failMsg) {
+    if (!LIVE) { save(); return true; }
+    try { await send(); return true; } catch (e) {
+      console.error(e);
+      toast(failMsg || "Couldn't save that. Check your connection and try again.");
+      refresh();
+      return false;
+    }
+  }
 
-  const user = (id) => state.users.find((u) => u.id === id);
+  const UNKNOWN = { id: "", name: "Someone", handle: "" };
+  const user = (id) => state.users.find((u) => u.id === id) || Object.assign({}, UNKNOWN, { id });
 
   function friendIds(uid) {
     const out = new Set();
@@ -54,7 +92,7 @@
   // A "night" runs 6 AM to 6 AM, so a 1 AM post still counts for tonight.
   function nightKey(ts) {
     const d = new Date(ts - 6 * 3600 * 1000);
-    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
   const tonight = () => nightKey(Date.now());
   const tonightsPosts = () => state.posts.filter((p) => nightKey(p.at) === tonight());
@@ -70,9 +108,13 @@
   // ---------- popularity ----------
   // Every post by anyone counts toward a bar, newer posts count more
   // (a post loses half its weight every 3 weeks). Highest score = most popular.
+  // Live mode gets the totals from the database, since you can only see your
+  // friends' posts but popularity counts everyone's.
   function popularity() {
     const now = Date.now(), score = {}, month = {};
-    for (const p of state.posts) {
+    if (state.popularity) {
+      for (const [id, v] of Object.entries(state.popularity)) { score[id] = v.score; if (v.month) month[id] = v.month; }
+    } else for (const p of state.posts) {
       const ageDays = Math.max(0, (now - p.at) / DAY);
       score[p.barId] = (score[p.barId] || 0) + Math.pow(0.5, ageDays / 21);
       if (ageDays <= 30) month[p.barId] = (month[p.barId] || 0) + 1;
@@ -367,18 +409,16 @@
     ta.addEventListener("input", updComment); updComment();
 
     $("#submit").onclick = () => {
-      // One post per night: replace any earlier post from tonight.
+      // One post per night: changing it keeps the same post (and its replies).
       const prev = myPost();
       state.posts = state.posts.filter((p) => !(p.userId === state.me && nightKey(p.at) === tonight()));
-      const post = { userId: state.me, barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() };
+      const post = { id: prev ? prev.id : uuid(), userId: state.me, night: tonight(), barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() };
       // Switching bars keeps the old pick, so the feed can show the whole saga.
       const history = prev ? (prev.history || []).slice() : [];
       if (prev && prev.barId !== post.barId) history.push({ barId: prev.barId, at: prev.at, excitement: prev.excitement, arrive: prev.arrive, comment: prev.comment || "" });
-      if (history.length) post.history = history;
+      post.history = history;
       state.posts.push(post);
-      if (prev) state.replies.forEach((r) => { if (r.post === pid(prev)) r.post = pid(post); });
-      onPost(post, prev);
-      save();
+      persist(() => API.savePost(post), "Couldn't save your post. Check your connection and try again.");
       closeSheet();
       toast("You're headed to " + b.name);
       render();
@@ -568,31 +608,39 @@
     const on = (attr, fn) => bodyEl.querySelectorAll(`[data-${attr}]`).forEach((b) => b.onclick = () => fn(b.dataset[attr]));
     on("request", (id) => {
       state.requests.push({ from: state.me, to: id, at: Date.now() });
-      if (settingsFor(id).requests) notify(id, "request", `${user(state.me).name} sent you a friend request`);
-      save(); toast("Request sent to " + user(id).name); render(); });
-    on("cancel", (id) => { state.requests = state.requests.filter((r) => !(r.from === state.me && r.to === id)); save(); toast("Request canceled"); render(); });
-    on("accept", (id) => {
+      persist(() => API.sendRequest(id)); toast("Request sent to " + user(id).name); render(); });
+    on("cancel", (id) => {
+      state.requests = state.requests.filter((r) => !(r.from === state.me && r.to === id));
+      persist(() => API.deleteRequest(state.me, id)); toast("Request canceled"); render(); });
+    on("accept", async (id) => {
       state.requests = state.requests.filter((r) => !((r.from === id && r.to === state.me) || (r.from === state.me && r.to === id)));
-      state.friendships.push([state.me, id]);
-      if (settingsFor(id).requests) notify(id, "accept", `${user(state.me).name} accepted your friend request`);
-      save();
+      state.friendships.push([state.me, id, { by: id, at: Date.now() }]);
       toast("You and " + user(id).name + " are now friends"); render();
+      // Their posts only come through once the database knows you're friends.
+      if (await persist(() => API.accept(id)) && LIVE) refresh();
     });
-    on("decline", (id) => { state.requests = state.requests.filter((r) => !(r.from === id && r.to === state.me)); save(); render(); });
+    on("decline", (id) => {
+      state.requests = state.requests.filter((r) => !(r.from === id && r.to === state.me));
+      persist(() => API.deleteRequest(id, state.me)); render(); });
     on("remove", (id) => {
+      if (!confirmRemove(id)) return;
       state.friendships = state.friendships.filter(([x, y]) => !((x === state.me && y === id) || (y === state.me && x === id)));
       setFav(state.me, id, false); setFav(id, state.me, false);
-      save(); render();
+      persist(() => API.unfriend(state.me, id)); render();
     });
     bindStars(bodyEl);
   }
   let friendQuery = "";
+  // Removing a friend is a real change for both people, so double-check (live only).
+  function confirmRemove(id) {
+    return !LIVE || window.confirm("Remove " + user(id).name + " as a friend? You'll stop seeing each other's posts.");
+  }
 
   // ---------- replies ----------
-  // A post's id is "<userId>@<timestamp>". Replies point at it, and move along
-  // when someone edits tonight's post.
-  const pid = (p) => p.userId + "@" + p.at;
-  const findPost = (id) => state.posts.find((p) => pid(p) === id);
+  // Replies point at the post's id, which stays the same when someone changes
+  // tonight's post.
+  const pid = (p) => p.id;
+  const findPost = (id) => state.posts.find((p) => p.id === id);
   const repliesFor = (id) => state.replies.filter((r) => r.post === id).sort((a, b) => a.at - b.at);
 
   function replyBar(p) {
@@ -612,13 +660,8 @@
   // the bottom. The Feed tab stays highlighted while it's open.
   let threadId = null, threadFlash = false;
   function threadPost(id) {
-    let p = findPost(id);
-    // An alert can point at a post that was later changed; show that person's post tonight instead.
-    if (!p || nightKey(p.at) !== tonight()) {
-      const uid = id.split("@")[0];
-      p = tonightsPosts().find((x) => x.userId === uid);
-    }
-    return p;
+    const p = findPost(id);
+    return p && nightKey(p.at) === tonight() ? p : null;
   }
   function openThread(id, opts = {}) {
     const p = threadPost(id);
@@ -673,18 +716,10 @@
     send.onclick = () => {
       const text = ta.value.trim();
       if (!text) return;
-      const postId = pid(p);
-      // Tell the post's owner and anyone else already in the thread.
-      const people = new Set([p.userId, ...rs.map((r) => r.userId)]);
-      people.delete(state.me);
-      state.replies.push({ post: postId, userId: state.me, text, at: Date.now() });
-      const me = user(state.me).name;
-      for (const to of people) {
-        if (!settingsFor(to).replies) continue;
-        const what = to === p.userId ? "your post" : `${u.name}'s post`;
-        notify(to, "reply", `${me} replied to ${what}: "${text.length > 60 ? text.slice(0, 57) + "…" : text}"`, { post: postId, barId: p.barId });
-      }
-      save();
+      // The post's owner and anyone else in the thread see it in their alerts.
+      const reply = { id: uuid(), post: pid(p), userId: state.me, text, at: Date.now() };
+      state.replies.push(reply);
+      persist(() => API.addReply(reply), "Couldn't send your reply. Check your connection and try again.");
       ta.value = "";
       render();
       el.scrollTop = el.scrollHeight;
@@ -703,7 +738,7 @@
   function bindStars(root) {
     root.querySelectorAll("[data-star]").forEach((b) => b.onclick = () => {
       const id = b.dataset.star, on = !isFav(state.me, id);
-      setFav(state.me, id, on); save();
+      setFav(state.me, id, on); persist(() => API.setFavorite(id, on));
       toast(on ? user(id).name + " is a favorite" : user(id).name + " removed from favorites");
       render();
     });
@@ -730,65 +765,82 @@
   }
 
   // ---------- notifications ----------
-  // In this prototype every user's inbox lives in the same browser, so switching
-  // "Viewing as" shows that person's notifications. A real app would push them.
-  const myNotes = () => (state.notifications || []).filter((n) => n.to === state.me).sort((a, b) => b.at - a.at);
+  // Alerts are worked out from what you can already see (friends' posts tonight,
+  // replies, friend requests), filtered by your own settings. Nothing is sent
+  // between people, so nobody else needs to know your settings or favorites.
+  // "Read" means older than the last time you opened the bell.
+  // (Real push alerts to a locked phone come with the iPhone app.)
+  function myNotes() {
+    const me = state.me, s = settingsFor(me), f = friendIds(me), out = [];
+    const seen = s.seenAt || 0, now = Date.now();
+    const add = (kind, text, at, extra = {}) =>
+      out.push({ kind, text, at, barId: extra.barId || null, post: extra.post || null, read: at <= seen });
+    const barName = (id) => (BAR_BY_ID[id] || { name: "a bar" }).name;
 
-  function notify(to, kind, text, opts = {}) {
-    if (opts.key) {
-      if (state.seen[opts.key]) return;
-      state.seen[opts.key] = 1;
+    const posts = tonightsPosts().filter((p) => BAR_BY_ID[p.barId]).sort((a, b) => a.at - b.at);
+    const mine = myPost();
+    const crowdTotal = {}, crowdSoFar = {};
+    for (const p of posts) if (f.has(p.userId)) crowdTotal[p.barId] = (crowdTotal[p.barId] || 0) + 1;
+    for (const p of posts) {
+      if (!f.has(p.userId)) continue;
+      const name = user(p.userId).name, bar = barName(p.barId);
+      const base = { barId: p.barId, post: p.id };
+      const hist = p.history || [], last = hist[hist.length - 1];
+      const fav = isFav(me, p.userId);
+      if (last && last.barId !== p.barId) {
+        if (s.switched) add("switch", `${name} switched from ${barName(last.barId)} to ${bar}`, p.at, base);
+      } else if (s.sameBar && mine && mine.barId === p.barId && mine.at < p.at) {
+        add("same", `${name} is headed to ${bar} too`, p.at, base);
+      } else if ((fav && s.favPosts) || s.anyPosts) {
+        add(fav ? "fav" : "post", `${name} is headed to ${bar}, around ${fmtTime(p.arrive)}`, p.at, base);
+      }
+      if (s.hyped && p.excitement >= 95) add("hype", `${name} is ${hypeLabel(p.excitement).toLowerCase()} for ${bar} tonight`, p.at, base);
+      crowdSoFar[p.barId] = (crowdSoFar[p.barId] || 0) + 1;
+      if (s.barCrowd && crowdSoFar[p.barId] === s.crowdSize) {
+        add("crowd", `${crowdTotal[p.barId]} of your friends are headed to ${bar} tonight`, p.at, { barId: p.barId });
+      }
     }
-    state.notifications.push({ to, kind, text, barId: opts.barId || null, post: opts.post || null, at: opts.at || Date.now(), read: false });
-    const s = settingsFor(to);
-    if (!opts.quiet && s.browser && "Notification" in window && Notification.permission === "granted") {
-      try { new Notification("Word" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
+
+    // Replies to my post, or to a post I replied to earlier.
+    if (s.replies) {
+      const replies = state.replies.slice().sort((a, b) => a.at - b.at);
+      const joined = {};
+      for (const r of replies) {
+        const p = findPost(r.post);
+        if (!p) continue;
+        if (r.userId === me) { joined[r.post] = true; continue; }
+        if (p.userId !== me && !joined[r.post]) continue;
+        const what = p.userId === me ? "your post" : `${user(p.userId).name}'s post`;
+        add("reply", `${user(r.userId).name} replied to ${what}: "${r.text.length > 60 ? r.text.slice(0, 57) + "…" : r.text}"`, r.at, { post: p.id, barId: p.barId });
+      }
     }
+
+    if (s.requests) {
+      for (const r of incoming()) add("request", `${user(r.from).name} sent you a friend request`, r.at);
+      for (const [a, b, meta] of state.friendships) {
+        if (!meta || meta.by !== me || now - meta.at > 14 * DAY) continue;
+        add("accept", `${user(a === me ? b : a).name} accepted your friend request`, meta.at);
+      }
+    }
+
+    // "Remind me to post": once a night after the chosen time, if I haven't posted.
+    if (s.reminder && !mine) {
+      const [y, m, d] = tonight().split("-").map(Number);
+      const at = new Date(y, m - 1, d).getTime() + timeKey(s.reminderTime) * 60000;
+      if (now >= at) add("reminder", "You haven't posted yet tonight. What's the word? Where are you headed?", at);
+    }
+    return out.sort((a, b) => b.at - a.at);
   }
 
-  // Someone posted (or changed) tonight's bar: tell each of their friends what
-  // they asked to hear about. Only the most relevant alert per friend, plus the
-  // "bar is filling up" alert, which is tracked separately.
-  function onPost(post, prev, opts = {}) {
-    const poster = user(post.userId), bar = BAR_BY_ID[post.barId];
-    const night = nightKey(post.at);
-    const postsTonight = state.posts.filter((p) => nightKey(p.at) === night);
-    for (const fid of friendIds(post.userId)) {
-      const s = settingsFor(fid);
-      const theirs = postsTonight.find((p) => p.userId === fid && p.at <= post.at);
-      const fav = isFav(fid, post.userId);
-      // Alerts about a friend link to their post; the crowd alert links to the bar.
-      const base = Object.assign({ barId: bar.id, post: pid(post) }, opts);
-      if (prev && prev.barId !== post.barId) {
-        if (s.switched) notify(fid, "switch", `${poster.name} switched from ${BAR_BY_ID[prev.barId].name} to ${bar.name}`, base);
-      } else if (!prev && s.sameBar && theirs && theirs.barId === post.barId) {
-        notify(fid, "same", `${poster.name} is headed to ${bar.name} too`, base);
-      } else if (!prev && ((fav && s.favPosts) || s.anyPosts)) {
-        notify(fid, fav ? "fav" : "post", `${poster.name} is headed to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
-      }
-      if (s.hyped && post.excitement >= 95 && !(prev && prev.excitement >= 95)) {
-        notify(fid, "hype", `${poster.name} is ${hypeLabel(post.excitement).toLowerCase()} for ${bar.name} tonight`, Object.assign({ key: `hype:${fid}:${post.userId}:${night}` }, base));
-      }
-      if (s.barCrowd) {
-        const myFriends = friendIds(fid);
-        const n = postsTonight.filter((p) => p.barId === post.barId && myFriends.has(p.userId)).length;
-        if (n >= s.crowdSize) {
-          notify(fid, "crowd", `${n} of your friends are headed to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base, { post: null }));
-        }
-      }
-    }
-  }
-
-  // "Remind me to post": fires once a night after the chosen time, if I haven't posted.
-  function checkReminder() {
-    const s = settingsFor(state.me);
-    if (!s.reminder || myPost()) return;
-    const d = new Date();
-    let nowMin = d.getHours() * 60 + d.getMinutes();
-    if (d.getHours() < 6) nowMin += 24 * 60;
-    if (nowMin >= timeKey(s.reminderTime)) {
-      notify(state.me, "reminder", "You haven't posted yet tonight. What's the word? Where are you headed?", { key: `rem:${state.me}:${tonight()}` });
-      save();
+  // Browser notifications (while the site is open): anything new since we last looked.
+  let lastPing = Date.now();
+  function pingNew() {
+    const s = settingsFor(state.me), since = lastPing;
+    lastPing = Date.now();
+    if (!s.browser || !("Notification" in window) || Notification.permission !== "granted") return;
+    for (const n of myNotes()) {
+      if (n.read || n.at <= since) continue;
+      try { new Notification("Word", { body: n.text }); } catch (e) {}
     }
   }
 
@@ -811,8 +863,9 @@
           <span class="note-body"><span>${esc(n.text)}</span><span class="sub small">${ago(n.at)}</span></span>
         </button>`).join("") : `<div class="empty">Nothing yet. Choose what you hear about in Settings.</div>`}</div>
       <div class="sheet-actions"><button class="btn" id="closeInbox">Close</button><button class="btn" id="inboxSettings">Settings</button></div>`);
-    notes.forEach((n) => (n.read = true));
-    save(); renderBell();
+    const s = settingsFor(state.me);
+    s.seenAt = Date.now();
+    persist(() => API.saveSettings(state.me, s)); renderBell();
     $("#closeInbox").onclick = closeSheet;
     $("#inboxSettings").onclick = () => { closeSheet(); showTab("settings"); };
     document.querySelectorAll(".note[data-bar]").forEach((x) => x.onclick = () => { closeSheet(); showTab("map"); focusBar(x.dataset.bar); });
@@ -824,6 +877,14 @@
   $("#gearBtn").addEventListener("click", () => showTab("settings"));
 
   // ---------- settings ----------
+  // Toggling several switches quickly sends one save, not one per tap.
+  let settingsTimer;
+  function saveSettings() {
+    renderBell();
+    if (!LIVE) return save();
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(() => persist(() => API.saveSettings(state.me, settingsFor(state.me))), 600);
+  }
   function renderSettings() {
     const el = $("#tab-settings");
     const s = settingsFor(state.me);
@@ -866,9 +927,13 @@
         ${toggle("browser", "Browser notifications", browserState)}
       </div>
 
+      ${LIVE ? `
+      <h2>Account</h2>
+      <div class="sub small" style="margin-bottom:10px">Signed in as ${esc(account.email || "")}</div>
+      <button class="btn small" id="signOut2">Sign out</button>` : `
       <h2>Demo</h2>
-      <div class="sub small" style="margin-bottom:10px">There's no sign-in yet. Use "Viewing as" at the top to be someone else; each person has their own settings and notifications. Everything is saved in this browser only.</div>
-      <button class="btn small" id="resetDemo">Reset demo data</button>`;
+      <div class="sub small" style="margin-bottom:10px">This copy isn't connected to a database. Use "Viewing as" on the Profile tab to be someone else; each person has their own settings and notifications. Everything is saved in this browser only.</div>
+      <button class="btn small" id="resetDemo">Reset demo data</button>`}`;
 
     el.querySelectorAll("[data-set]").forEach((inp) => inp.onchange = async () => {
       const key = inp.dataset.set;
@@ -877,16 +942,16 @@
         const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
         if (perm !== "granted") { inp.checked = false; toast("Notifications aren't allowed in this browser"); renderSettings(); return; }
       }
-      s[key] = inp.checked; save();
-      if (key === "reminder") { checkReminder(); renderBell(); }
+      s[key] = inp.checked; saveSettings();
     });
     el.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => {
-      s.crowdSize = Math.min(8, Math.max(2, s.crowdSize + +b.dataset.step)); save();
+      s.crowdSize = Math.min(8, Math.max(2, s.crowdSize + +b.dataset.step)); saveSettings();
       $("#crowdSize").textContent = s.crowdSize;
     });
-    $("#reminderTime").onchange = (e) => { s.reminderTime = e.target.value; save(); checkReminder(); renderBell(); };
+    $("#reminderTime").onchange = (e) => { s.reminderTime = e.target.value; saveSettings(); };
     $("#settingsBack").onclick = () => showTab("feed");
     bindStars(el);
+    if (LIVE) { $("#signOut2", el).onclick = signOut; return; }
     $("#resetDemo", el).onclick = () => {
       state = window.ROLLING_SEED();
       state.favorites = { u_sam: ["u_jake", "u_maddie"] }; state.settings = {}; state.seen = {};
@@ -914,9 +979,9 @@
         <div class="sub">@${esc(me.handle)}</div>
         <button class="btn small" id="editProfile">Edit profile</button>
       </div>
-      <label class="viewas card" title="No sign-in yet: pick which demo user you are">
+      ${LIVE ? "" : `<label class="viewas card" title="Demo only: pick which sample user you are">
         <span>Demo: viewing as</span><select id="viewAs"></select>
-      </label>
+      </label>`}
       <div class="card stats">
         <div><b>${nights}</b><span>nights out</span></div>
         <div><b>${Object.keys(counts).length}</b><span>bars</span></div>
@@ -926,8 +991,10 @@
       <div class="card list">${top.length ? top.map(([id, n], i) => `
         <button class="spot-row" data-bar="${id}"><span class="rank top">${i + 1}</span>
           <span class="info"><div class="n">${esc(BAR_BY_ID[id].name)}</div><div class="sub small">${n} night${n > 1 ? "s" : ""}</div></span></button>`).join("")
-        : `<div class="sub small">Post where you're headed and your favorite bars show up here.</div>`}</div>`;
+        : `<div class="sub small">Post where you're headed and your favorite bars show up here.</div>`}</div>
+      ${LIVE ? `<div class="account-row"><span class="sub small">${esc(account.email || "")}</span><button class="btn small ghost" id="signOut">Sign out</button></div>` : ""}`;
     renderViewAs();
+    if (LIVE) $("#signOut").onclick = signOut;
     el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
     $("#editProfile").onclick = () => {
       openSheet(`<h3>Edit profile</h3><div class="sub">Your friends see this.</div>
@@ -936,10 +1003,18 @@
         <div class="small counter" id="pfErr"></div>
         <div class="sheet-actions"><button class="btn" id="pfCancel">Cancel</button><button class="btn primary" id="pfSave">Save</button></div>`);
       $("#pfCancel").onclick = closeSheet;
-      $("#pfSave").onclick = () => {
+      $("#pfSave").onclick = async () => {
         const name = $("#pfName").value.trim(), handle = $("#pfHandle").value.trim().replace(/^@/, "").toLowerCase();
         if (!name || !/^[a-z0-9_.]{2,20}$/.test(handle)) { $("#pfErr").textContent = "Add a name, and a handle of 2 to 20 letters, numbers, _ or ."; return; }
         if (state.users.some((u) => u.id !== me.id && u.handle === handle)) { $("#pfErr").textContent = "@" + handle + " is taken."; return; }
+        if (LIVE) {
+          $("#pfSave").disabled = true;
+          try { await API.updateProfile(me.id, name, handle); } catch (e) {
+            $("#pfSave").disabled = false;
+            $("#pfErr").textContent = e && e.code === "23505" ? "@" + handle + " is taken." : "Couldn't save. Check your connection and try again.";
+            return;
+          }
+        }
         me.name = name; me.handle = handle; save(); closeSheet(); renderViewAs(); render(); toast("Profile saved");
       };
     };
@@ -957,39 +1032,184 @@
     if (currentTab === "thread") renderThread();
   }
 
-  // Rename (Rolling -> Word): reword alerts saved before the rename.
-  for (const n of state.notifications || []) {
-    n.text = n.text.replace(/ (is|are) rolling to /, " $1 headed to ").replace("Where are you rolling?", "What's the word? Where are you headed?");
+  // ---------- demo start-up ----------
+  function startDemo() {
+    if (!state.seen["demo:switcher:" + tonight()] && !tonightsPosts().some((p) => p.userId === "u_nick")) {
+      const nick = window.ROLLING_SEED().posts.find((p) => p.userId === "u_nick" && p.history);
+      if (nick && user("u_nick").name !== UNKNOWN.name) state.posts.push(nick);
+      state.seen["demo:switcher:" + tonight()] = 1;
+    }
+    ensureIds();
+    if (seedReplies) {
+      const tp = (uid) => tonightsPosts().find((p) => p.userId === uid);
+      const add = (uid, onUser, text, mins) => { const p = tp(onUser); if (p) state.replies.push({ id: uuid(), post: pid(p), userId: uid, text, at: Math.min(Date.now(), p.at + mins * 60000) }); };
+      add("u_tyler", "u_jake", "already there in spirit", 3);
+      add("u_olivia", "u_jake", "save me a spot by the window", 6);
+      add("u_emma", "u_maddie", "wear the red top 👀", 4);
+      add("u_nick", "u_ryan", "might join late", 20);
+    }
+    save();
+    renderViewAs();
+    render();
   }
 
-  // First run: build the starting inbox by replaying tonight's posts and pending requests.
-  if (!state.notifications) {
-    state.notifications = [];
-    const posts = tonightsPosts().sort((a, b) => a.at - b.at);
-    for (const p of posts) onPost(p, null, { quiet: true, at: p.at });
-    for (const r of state.requests) if (settingsFor(r.to).requests) notify(r.to, "request", `${user(r.from).name} sent you a friend request`, { quiet: true, at: r.at });
-    save();
+  // ---------- live: sign in, load, keep fresh ----------
+  let account = {}, refreshing = null, started = false;
+
+  async function refresh() {
+    if (!LIVE || !state.me) return;
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      try {
+        const data = await API.loadAll(state.me);
+        if (data.me !== state.me) return; // signed out meanwhile
+        Object.assign(state, data);
+        if (!state.users.some((u) => u.id === state.me)) {
+          showAuth("signin", "Your account isn't set up yet. Ask Sam to finish the database setup, then sign in again.");
+          return;
+        }
+        render();
+        pingNew();
+      } catch (e) {
+        console.error(e);
+        if (!started) toast("Couldn't load Word. Check your connection.");
+      } finally { refreshing = null; }
+    })();
+    return refreshing;
   }
 
-  if (!state.seen["demo:switcher:" + tonight()] && !tonightsPosts().some((p) => p.userId === "u_nick")) {
-    const nick = window.ROLLING_SEED().posts.find((p) => p.userId === "u_nick" && p.history);
-    if (nick && user("u_nick")) state.posts.push(nick);
-    state.seen["demo:switcher:" + tonight()] = 1;
-    save();
-  }
-  if (seedReplies) {
-    const tp = (uid) => tonightsPosts().find((p) => p.userId === uid);
-    const add = (uid, onUser, text, mins) => { const p = tp(onUser); if (p) state.replies.push({ post: pid(p), userId: uid, text, at: Math.min(Date.now(), p.at + mins * 60000) }); };
-    add("u_tyler", "u_jake", "already there in spirit", 3);
-    add("u_olivia", "u_jake", "save me a spot by the window", 6);
-    add("u_emma", "u_maddie", "wear the red top 👀", 4);
-    add("u_nick", "u_ryan", "might join late", 20);
-    save();
+  async function enter(session) {
+    account = { email: session.user.email };
+    if (state.me === session.user.id && started) return;
+    state.me = session.user.id;
+    hideAuth();
+    $("#tab-feed").innerHTML = `<div class="empty">Loading…</div>`;
+    await refresh();
+    started = true;
   }
 
-  renderViewAs();
-  checkReminder();
-  render();
-  // Keep "12m ago" labels fresh and check the posting reminder.
-  setInterval(() => { checkReminder(); if (currentTab === "feed") renderFeed(); }, 60000);
+  async function signOut() {
+    try { await API.auth.signOut(); } catch (e) {}
+    location.reload();
+  }
+
+  function startLive() {
+    showAuth("loading");
+    let recovering = /type=recovery/.test(location.hash);
+    API.auth.onChange((event, session) => {
+      // Came back from a "reset your password" email: pick a new one first.
+      if (event === "PASSWORD_RECOVERY") { recovering = true; showAuth("newpass"); return; }
+      if (event === "SIGNED_OUT") { state.me = null; started = false; showAuth("signin"); return; }
+      if (session && !recovering && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) setTimeout(() => enter(session), 0);
+      if (!session && event === "INITIAL_SESSION") showAuth("signin");
+    });
+    API.auth.donePasswordReset = () => { recovering = false; };
+    // Keep the feed fresh: every 30 seconds while open, and right away when you come back to it.
+    setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  }
+
+  // ---------- sign-in screens ----------
+  function hideAuth() { $("#auth").classList.add("hidden"); }
+  function showAuth(mode, note) {
+    const el = $("#auth");
+    el.classList.remove("hidden");
+    const logo = `<div class="auth-logo"><svg viewBox="0 0 260 50" aria-label="Word"><text x="2" y="44" textLength="248" lengthAdjust="spacingAndGlyphs">WORD</text></svg></div>`;
+    const field = (id, label, type, extra = "") => `<label class="field-label" for="${id}">${label}</label><input class="search" id="${id}" type="${type}" ${extra} />`;
+    let body = "";
+    if (mode === "loading") body = `<div class="auth-sub">Loading…</div>`;
+    if (mode === "signin") body = `
+      <div class="auth-sub">What's the word? Sign in to see where your friends are headed tonight.</div>
+      <form class="auth-card" id="authForm" novalidate>
+        ${field("aEmail", "Email", "email", 'autocomplete="email" required')}
+        ${field("aPass", "Password", "password", 'autocomplete="current-password" required')}
+        <div class="auth-msg" id="authMsg"></div>
+        <button class="btn primary" type="submit">Sign in</button>
+        <button class="link-btn" type="button" data-mode="reset">Forgot password?</button>
+      </form>
+      <div class="auth-switch">New here? <button class="link-btn" type="button" data-mode="signup">Create an account</button></div>`;
+    if (mode === "signup") body = `
+      <div class="auth-sub">Make an account, then add your friends. Only friends you accept see your posts.</div>
+      <form class="auth-card" id="authForm" novalidate>
+        ${field("aName", "Name", "text", 'maxlength="30" autocomplete="given-name" placeholder="What friends call you" required')}
+        ${field("aHandle", "Handle", "text", 'maxlength="20" autocapitalize="none" autocomplete="username" placeholder="@yourname" required')}
+        ${field("aEmail", "Email", "email", 'autocomplete="email" required')}
+        ${field("aPass", "Password", "password", 'autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required')}
+        <div class="auth-msg" id="authMsg"></div>
+        <button class="btn primary" type="submit">Create account</button>
+      </form>
+      <div class="auth-switch">Already have an account? <button class="link-btn" type="button" data-mode="signin">Sign in</button></div>`;
+    if (mode === "reset") body = `
+      <div class="auth-sub">We'll email you a link to choose a new password.</div>
+      <form class="auth-card" id="authForm" novalidate>
+        ${field("aEmail", "Email", "email", 'autocomplete="email" required')}
+        <div class="auth-msg" id="authMsg"></div>
+        <button class="btn primary" type="submit">Send link</button>
+      </form>
+      <div class="auth-switch"><button class="link-btn" type="button" data-mode="signin">Back to sign in</button></div>`;
+    if (mode === "newpass") body = `
+      <div class="auth-sub">Choose a new password.</div>
+      <form class="auth-card" id="authForm" novalidate>
+        ${field("aPass", "New password", "password", 'autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required')}
+        <div class="auth-msg" id="authMsg"></div>
+        <button class="btn primary" type="submit">Save password</button>
+      </form>`;
+    el.innerHTML = `<div class="auth-inner">${logo}${body}</div>`;
+    const msg = (t, good) => { const m = $("#authMsg"); if (m) { m.textContent = t || ""; m.classList.toggle("good", !!good); } };
+    if (note) msg(note);
+    el.querySelectorAll("[data-mode]").forEach((b) => b.onclick = () => showAuth(b.dataset.mode));
+    const form = $("#authForm");
+    if (!form) return;
+    const val = (id) => ($("#" + id) ? $("#" + id).value.trim() : "");
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const btn = form.querySelector("[type=submit]");
+      const email = val("aEmail"), pass = $("#aPass") ? $("#aPass").value : "";
+      if ($("#aEmail") && !/^\S+@\S+\.\S+$/.test(email)) return msg("Enter your email address.");
+      if (mode !== "reset" && pass.length < 6) return msg("Passwords are at least 6 characters.");
+      btn.disabled = true; msg("");
+      try {
+        if (mode === "signin") {
+          await API.auth.signIn(email, pass);
+        } else if (mode === "signup") {
+          const name = val("aName"), handle = val("aHandle").replace(/^@/, "").toLowerCase();
+          if (!name) { btn.disabled = false; return msg("Add your name."); }
+          if (!/^[a-z0-9_.]{2,20}$/.test(handle)) { btn.disabled = false; return msg("Handles are 2 to 20 letters, numbers, _ or ."); }
+          if (!(await API.auth.handleAvailable(handle))) { btn.disabled = false; return msg("@" + handle + " is taken. Try another."); }
+          const res = await API.auth.signUp({ email, password: pass, name, handle });
+          // If the project asks people to confirm their email, there's no session yet.
+          if (!res.session) { showAuth("signin"); msg("Check your email for a link to confirm your account, then sign in here.", true); return; }
+        } else if (mode === "reset") {
+          await API.auth.sendReset(email);
+          btn.disabled = false;
+          return msg("If that email has an account, a reset link is on its way.", true);
+        } else if (mode === "newpass") {
+          await API.auth.setPassword(pass);
+          API.auth.donePasswordReset();
+          history.replaceState(null, "", location.pathname);
+          toast("Password updated");
+          const session = await API.auth.session();
+          if (session) enter(session);
+        }
+      } catch (e) {
+        btn.disabled = false;
+        msg(authError(e));
+      }
+    };
+    const first = form.querySelector("input"); if (first) setTimeout(() => first.focus(), 50);
+  }
+  function authError(e) {
+    const m = String((e && e.message) || e || "");
+    if (/invalid login credentials/i.test(m)) return "That email and password don't match.";
+    if (/email not confirmed/i.test(m)) return "Confirm your email first: check your inbox for the link.";
+    if (/already registered|already been registered/i.test(m)) return "There's already an account with that email. Sign in instead.";
+    if (/rate limit|too many/i.test(m)) return "Too many tries. Wait a minute and try again.";
+    if (/password/i.test(m)) return m;
+    if (/fetch|network/i.test(m)) return "Can't reach Word. Check your connection.";
+    return m || "Something went wrong. Try again.";
+  }
+
+  if (LIVE) startLive(); else startDemo();
+  // Keep "12m ago" labels and the bell fresh.
+  setInterval(() => { if (!state.me) return; renderBell(); if (currentTab === "feed") renderFeed(); if (!LIVE) pingNew(); }, 60000);
 })();
