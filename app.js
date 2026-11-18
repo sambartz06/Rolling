@@ -317,7 +317,7 @@
         <div class="label">Your post tonight</div>
         ${postBody(mine, { replies: true })}
         <div class="mine-actions">${bailed(mine)
-          ? `<button class="btn small" id="editMine">I made it out after all</button>`
+          ? `<button class="btn small" id="editMine">We're so back</button>`
           : `<button class="btn small" id="editMine">${isOut(mine) ? "Update where I am" : "Change tonight's post"}</button>
              <button class="btn small ghost" id="bailMine">Didn't make it out</button>`}</div>
       </div>`;
