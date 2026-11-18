@@ -143,7 +143,8 @@
   function showTab(name) {
     currentTab = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + name));
-    document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    const lit = name === "thread" ? "feed" : name;
+    document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === lit));
     render();
     if (name === "map") setTimeout(() => map && map.invalidateSize(), 0);
   }
@@ -606,44 +607,69 @@
   }
 
   // The post plus its replies, like a tweet's thread.
-  function openThread(id, opts = {}) {
+  // Replies open as their own page (Sam, 2026-11-18): "‹ Feed" back link, the
+  // post on top with a bigger comment, the replies, and a reply box pinned to
+  // the bottom. The Feed tab stays highlighted while it's open.
+  let threadId = null, threadFlash = false;
+  function threadPost(id) {
     let p = findPost(id);
     // An alert can point at a post that was later changed; show that person's post tonight instead.
     if (!p || nightKey(p.at) !== tonight()) {
       const uid = id.split("@")[0];
       p = tonightsPosts().find((x) => x.userId === uid);
     }
-    if (!p) { closeSheet(); toast("That post is from an earlier night"); return; }
+    return p;
+  }
+  function openThread(id, opts = {}) {
+    const p = threadPost(id);
+    closeSheet();
+    if (!p) { toast("That post is from an earlier night"); return; }
     const canSee = p.userId === state.me || friendIds(state.me).has(p.userId);
-    if (!canSee) { closeSheet(); toast("Only friends can see that post"); return; }
-    const u = user(p.userId), b = BAR_BY_ID[p.barId], rs = repliesFor(pid(p));
-    openSheet(`
-      <div class="thread-post ${opts.highlight ? "flash" : ""}" data-post="${pid(p)}">
-        ${postBody(p)}
+    if (!canSee) { toast("Only friends can see that post"); return; }
+    threadId = pid(p); threadFlash = !!opts.highlight;
+    showTab("thread");
+    $("#tab-thread").scrollTop = 0;
+  }
+  function renderThread() {
+    const el = $("#tab-thread");
+    const old = $("#replyText", el), draft = old && old.dataset.post === threadId ? old.value : "";
+    const p = threadId && threadPost(threadId);
+    const canSee = p && (p.userId === state.me || friendIds(state.me).has(p.userId));
+    if (!canSee) {
+      el.innerHTML = `<button class="back-link" id="threadBack">‹ Feed</button><div class="empty">This post isn't available anymore.</div>`;
+      $("#threadBack").onclick = () => showTab("feed");
+      return;
+    }
+    threadId = pid(p);
+    const u = user(p.userId), rs = repliesFor(threadId);
+    el.innerHTML = `
+      <div class="thread-page">
+        <button class="back-link" id="threadBack">‹ Feed</button>
+        <div class="thread-post ${threadFlash ? "flash" : ""}" data-post="${threadId}">${postBody(p)}</div>
+        <h2>${rs.length} ${rs.length === 1 ? "reply" : "replies"}</h2>
+        <div class="replies">${rs.map((r) => `<div class="reply"><div class="reply-body">
+            <div class="reply-head"><b>${r.userId === state.me ? "You" : esc(user(r.userId).name)}</b><span class="sub small">${ago(r.at)}</span></div>
+            <div class="reply-text">${esc(r.text)}</div></div></div>`).join("")
+          || `<div class="sub small">No replies yet. Start the conversation.</div>`}</div>
       </div>
-      <div class="field-label">${rs.length} ${rs.length === 1 ? "reply" : "replies"}</div>
-      <div class="replies">${rs.map((r) => {
-        const ru = user(r.userId);
-        return `<div class="reply"><div class="reply-body">
-          <div><b>${r.userId === state.me ? "You" : esc(ru.name)}</b> <span class="sub small">· ${ago(r.at)}</span></div>
-          <div class="reply-text">${esc(r.text)}</div></div></div>`;
-      }).join("") || `<div class="sub small">No replies yet. Start the conversation.</div>`}</div>
       <div class="reply-compose">
-        <textarea class="comment" id="replyText" rows="2" placeholder="Reply to ${u.id === state.me ? "your friends" : esc(u.name)}…"></textarea>
+        <textarea class="comment" id="replyText" data-post="${threadId}" rows="2" placeholder="Reply to ${u.id === state.me ? "your friends" : esc(u.name)}…"></textarea>
         <div class="reply-compose-row"><span class="small counter" id="replyCount">0/${COMMENT_WORDS} words</span>
           <button class="btn primary small" id="sendReply" disabled>Reply</button></div>
-      </div>
-      <div class="sheet-actions"><button class="btn" id="closeThread">Close</button></div>`);
-    $("#closeThread").onclick = closeSheet;
-    $("#sheet").querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { closeSheet(); showTab("map"); focusBar(n.dataset.bar); });
+      </div>`;
+    threadFlash = false;
+    $("#threadBack").onclick = () => showTab("feed");
+    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
     const ta = $("#replyText"), cnt = $("#replyCount"), send = $("#sendReply");
-    ta.addEventListener("input", () => {
+    const sync = () => {
       if (wordCount(ta.value) > COMMENT_WORDS) ta.value = limitWords(ta.value, COMMENT_WORDS);
       const n = wordCount(ta.value);
       cnt.textContent = n + "/" + COMMENT_WORDS + " words";
       cnt.classList.toggle("full", n >= COMMENT_WORDS);
       send.disabled = !n;
-    });
+    };
+    ta.value = draft; sync();
+    ta.addEventListener("input", sync);
     send.onclick = () => {
       const text = ta.value.trim();
       if (!text) return;
@@ -659,8 +685,9 @@
         notify(to, "reply", `${me} replied to ${what}: "${text.length > 60 ? text.slice(0, 57) + "…" : text}"`, { post: postId, barId: p.barId });
       }
       save();
-      openThread(postId);
+      ta.value = "";
       render();
+      el.scrollTop = el.scrollHeight;
     };
   }
 
@@ -790,7 +817,7 @@
     $("#inboxSettings").onclick = () => { closeSheet(); showTab("settings"); };
     document.querySelectorAll(".note[data-bar]").forEach((x) => x.onclick = () => { closeSheet(); showTab("map"); focusBar(x.dataset.bar); });
     document.querySelectorAll(".note[data-goto]").forEach((x) => x.onclick = () => { closeSheet(); showTab(x.dataset.goto); });
-    document.querySelectorAll(".note[data-post]").forEach((x) => x.onclick = () => { showTab("feed"); openThread(x.dataset.post, { highlight: true }); });
+    document.querySelectorAll(".note[data-post]").forEach((x) => x.onclick = () => openThread(x.dataset.post, { highlight: true }));
     document.querySelectorAll(".note[data-compose]").forEach((x) => x.onclick = () => openComposer());
   }
   $("#bellBtn").addEventListener("click", openInbox);
@@ -927,6 +954,7 @@
     if (currentTab === "map") renderMap();
     if (currentTab === "friends") renderFriends();
     if (currentTab === "profile") renderProfile();
+    if (currentTab === "thread") renderThread();
   }
 
   // Rename (Rolling -> Word): reword alerts saved before the rename.

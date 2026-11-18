@@ -18,7 +18,7 @@ Everything is saved in your browser (localStorage). There's no sign-in yet, so u
 
 | Tab | What it does |
 | --- | --- |
-| Feed | Your post for tonight (tap "Post where I'm headed" at the top: pick a bar, most popular first, then arrival time, an optional comment up to 100 words, and the excitement meter; posting again replaces it), friends' posts (bar, excitement, arrival time, comment), and who hasn't posted yet. Tap a post to open its replies and reply (up to 100 words) |
+| Feed | Your post for tonight (tap "Post where I'm headed" at the top: pick a bar, most popular first, then arrival time, an optional comment up to 100 words, and the excitement meter; posting again replaces it), friends' posts (bar, excitement, arrival time, comment), and who hasn't posted yet. Tap a post to open its replies page ("‹ Feed" to go back) and reply from the box at the bottom (up to 100 words) |
 | Map | Bars where friends are going, with a count on each pin. Tap a pin to see who's going, when they'll get there, and the group's excitement. "Friends' spots" shows every bar your friends have been to before, pale red for places they rarely go up to deep red for their favorites (dots only grow a little). Bars your friends never go to aren't shown |
 | Friends | One search across your friends, requests and everyone else (friends first). Send, accept or decline friend requests; star favorites; remove friends. Feed and map only show friends |
 | Profile | Your name and @handle, nights out, bars and switches, your top 3 usual spots, and Edit profile. No profile pictures anywhere in the app |
