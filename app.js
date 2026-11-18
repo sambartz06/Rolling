@@ -150,10 +150,12 @@
   document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
   // ---------- view-as switcher (stand-in for sign-in) ----------
+  // Lives on the Profile tab so the top bar is just the logo, bell and gear.
   function renderViewAs() {
+    if (!$("#viewAs")) return;
     $("#viewAs").innerHTML = state.users.map((u) => `<option value="${u.id}" ${u.id === state.me ? "selected" : ""}>${esc(u.name)}</option>`).join("");
   }
-  $("#viewAs").addEventListener("change", (e) => { state.me = e.target.value; save(); render(); });
+  document.addEventListener("change", (e) => { if (e.target.id === "viewAs") { state.me = e.target.value; save(); render(); } });
   function renderBadge() {
     const n = incoming().length;
     const b = $("#reqBadge");
@@ -870,6 +872,9 @@
         <div class="sub">@${esc(me.handle)}</div>
         <button class="btn small" id="editProfile">Edit profile</button>
       </div>
+      <label class="viewas card" title="No sign-in yet: pick which demo user you are">
+        <span>Demo: viewing as</span><select id="viewAs"></select>
+      </label>
       <div class="card stats">
         <div><b>${nights}</b><span>nights out</span></div>
         <div><b>${Object.keys(counts).length}</b><span>bars</span></div>
@@ -880,6 +885,7 @@
         <button class="spot-row" data-bar="${id}"><span class="rank top">${i + 1}</span>
           <span class="info"><div class="n">${esc(BAR_BY_ID[id].name)}</div><div class="sub small">${n} night${n > 1 ? "s" : ""}</div></span></button>`).join("")
         : `<div class="sub small">Post where you're headed and your favorite bars show up here.</div>`}</div>`;
+    renderViewAs();
     el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
     $("#editProfile").onclick = () => {
       openSheet(`<h3>Edit profile</h3><div class="sub">Your friends see this.</div>

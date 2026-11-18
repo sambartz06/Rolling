@@ -14,12 +14,12 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand">Word<span class="dot">.</span></div>
+      <h1 class="brand" aria-label="Word">
+        <svg viewBox="0 0 260 50" preserveAspectRatio="xMinYMid meet" aria-hidden="true">
+          <text x="2" y="44" textLength="248" lengthAdjust="spacingAndGlyphs">WORD<tspan class="dot">.</tspan></text>
+        </svg>
+      </h1>
       <div class="top-actions">
-        <label class="viewas" title="No sign-in yet: pick which mock user you are">
-          <span>Viewing as</span>
-          <select id="viewAs"></select>
-        </label>
         <button class="icon-btn" id="bellBtn" aria-label="Notifications">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
           <span class="badge hidden" id="bellBadge">0</span>
