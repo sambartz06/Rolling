@@ -1406,6 +1406,55 @@
     return m || "Something went wrong. Try again.";
   }
 
+  // Tap the bar in the top banner: it bounces, a mug pops up and foam sprays out (Sam, 2026-11-18).
+  // Red, white and grays only, from the design thread.
+  function beerSplash(pub) {
+    const street = pub.parentElement;
+    const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const x = street.clientWidth - pub.clientWidth / 2; // middle of the bar
+    const y = pub.clientHeight * 0.45;                    // up near the sign
+
+    pub.animate([{ transform: "scale(1)" }, { transform: "scale(1.08, .92)" }, { transform: "scale(.96, 1.06)" }, { transform: "scale(1)" }],
+      { duration: 380, easing: "ease-out" });
+
+    const mug = document.createElement("div");
+    mug.className = "mug-pop";
+    mug.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">' +
+      '<rect x="2.5" y="5" width="8.5" height="9.5" rx="1.4" fill="#FFFFFF"/>' +
+      '<path d="M11 7h1.6a2 2 0 0 1 2 2v1.6a2 2 0 0 1-2 2H11v-1.4h1.4a.8.8 0 0 0 .8-.8V9.2a.8.8 0 0 0-.8-.8H11z" fill="#FFFFFF"/>' +
+      '<path d="M4.6 7.4v5M6.75 7.4v5M8.9 7.4v5" stroke="#C9C3C4" stroke-width=".9" stroke-linecap="round"/>' +
+      '<circle cx="3.6" cy="4.6" r="2" fill="#E6E2E3"/><circle cx="6.6" cy="3.6" r="2.5" fill="#FFFFFF"/><circle cx="9.6" cy="4.4" r="2.1" fill="#E6E2E3"/></svg>';
+    mug.style.left = (x - 8) + "px";
+    mug.style.bottom = y + "px";
+    street.append(mug);
+    mug.animate(reduce
+      ? [{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .8 }, { opacity: 0 }]
+      : [{ transform: "translateY(6px) scale(.4)", opacity: 0 }, { transform: "translateY(-6px) scale(1.1) rotate(-18deg)", opacity: 1, offset: .35 },
+         { transform: "translateY(-8px) scale(1) rotate(-28deg)", opacity: 1, offset: .75 }, { transform: "translateY(-4px) scale(.9) rotate(-28deg)", opacity: 0 }],
+      { duration: 1100, easing: "ease-out" }).onfinish = () => mug.remove();
+    if (reduce) return;
+
+    for (let i = 0; i < 16; i++) {
+      const f = document.createElement("div");
+      f.className = "foam";
+      const size = 2.5 + Math.random() * 4;
+      f.style.width = f.style.height = size + "px";
+      f.style.background = Math.random() < .7 ? "#FFFFFF" : "#E6E2E3";
+      f.style.left = (x - 4 + Math.random() * 6) + "px";
+      f.style.bottom = (y + 10) + "px";
+      street.append(f);
+      const dx = -26 + Math.random() * 30; // the mug tips left, so most foam flies left
+      const up = 10 + Math.random() * 18;
+      f.animate([
+        { transform: "translate(0,0) scale(.6)", opacity: 1 },
+        { transform: `translate(${dx * .55}px, ${-up}px) scale(1)`, opacity: 1, offset: .4 },
+        { transform: `translate(${dx}px, ${8 + Math.random() * 10}px) scale(.8)`, opacity: 0 }
+      ], { duration: 700 + Math.random() * 500, delay: 120 + Math.random() * 160, easing: "cubic-bezier(.2,.7,.4,1)", fill: "backwards" })
+        .onfinish = () => f.remove();
+    }
+  }
+  { const p = $(".street .pub"); if (p) { p.addEventListener("click", () => beerSplash(p)); p.setAttribute("title", "Cheers"); } }
+
   if (LIVE) startLive(); else startDemo();
   // Keep "12m ago" labels and the bell fresh.
   setInterval(() => { if (!state.me) return; renderBell(); if (currentTab === "feed") renderFeed(); if (!LIVE) pingNew(); }, 60000);
