@@ -15,10 +15,19 @@
   <div id="app">
     <header class="topbar">
       <div class="brand">Rolling<span class="dot">.</span></div>
-      <label class="viewas" title="No sign-in yet: pick which mock user you are">
-        <span>Viewing as</span>
-        <select id="viewAs"></select>
-      </label>
+      <div class="top-actions">
+        <label class="viewas" title="No sign-in yet: pick which mock user you are">
+          <span>Viewing as</span>
+          <select id="viewAs"></select>
+        </label>
+        <button class="icon-btn" id="bellBtn" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+          <span class="badge hidden" id="bellBadge">0</span>
+        </button>
+        <button class="icon-btn" id="gearBtn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L11 21h4l.4-2.9a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
+        </button>
+      </div>
     </header>
 
     <main>
@@ -28,6 +37,7 @@
         <div class="map-legend" id="mapLegend"></div>
       </section>
       <section id="tab-friends" class="tab"></section>
+      <section id="tab-settings" class="tab"></section>
     </main>
 
     <nav class="tabbar">

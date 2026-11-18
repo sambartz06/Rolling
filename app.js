@@ -20,6 +20,10 @@
     const fresh = window.ROLLING_SEED().posts.filter((p) => nightKey(p.at) === nightKey(Date.now()));
     state.posts = state.posts.concat(fresh);
   }
+  // Fields added in later versions; fill them in for older saved data.
+  state.favorites = state.favorites || { u_sam: ["u_jake", "u_maddie"] };
+  state.settings = state.settings || {};
+  state.seen = state.seen || {};
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE_KEY));
@@ -201,7 +205,7 @@
         return `<div class="card post">
           ${avatar(u)}
           <div class="body">
-            <div class="line1"><span class="who">${esc(u.name)}</span><span class="time">${ago(p.at)}</span></div>
+            <div class="line1"><span class="who">${esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
             <div class="where">rolling to <b data-bar="${b.id}">${esc(b.name)}</b></div>
             ${postDetails(p)}
           </div>
@@ -324,8 +328,11 @@
 
     $("#submit").onclick = () => {
       // One post per night: replace any earlier post from tonight.
+      const prev = myPost();
       state.posts = state.posts.filter((p) => !(p.userId === state.me && nightKey(p.at) === tonight()));
-      state.posts.push({ userId: state.me, barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() });
+      const post = { userId: state.me, barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() };
+      state.posts.push(post);
+      onPost(post, prev);
       save();
       closeSheet();
       toast("You're rolling to " + b.name);
@@ -432,7 +439,7 @@
     const f = friendIds(state.me);
     const inc = incoming(), out = outgoing();
     const sentTo = new Set(out.map((r) => r.to)), gotFrom = new Set(inc.map((r) => r.from));
-    const friends = [...f].map(user).sort((a, b) => a.name.localeCompare(b.name));
+    const friends = [...f].map(user).sort((a, b) => isFav(state.me, b.id) - isFav(state.me, a.id) || a.name.localeCompare(b.name));
     const others = state.users.filter((u) => u.id !== state.me && !f.has(u.id) && !gotFrom.has(u.id));
     const mutuals = (uid) => [...friendIds(uid)].filter((x) => f.has(x)).length;
     const person = (u, sub, actions) => `
@@ -455,44 +462,258 @@
         : `<div class="sub small">You're friends with everyone in the demo.</div>`}</div>
 
       <h2>Your friends · ${friends.length}</h2>
-      <div class="card list">${friends.length ? friends.map((u) => person(u, "",
-        `<button class="btn small ghost" data-remove="${u.id}">Remove</button>`)).join("")
+      <div class="card list">${friends.length ? friends.map((u) => person(u, isFav(state.me, u.id) ? "Favorite" : "",
+        `${starBtn(u.id)}<button class="btn small ghost" data-remove="${u.id}">Remove</button>`)).join("")
         : `<div class="sub small">No friends yet. Send some requests above.</div>`}</div>
 
-      <h2>Demo</h2>
-      <div class="sub small" style="margin-bottom:10px">There's no sign-in yet. Use "Viewing as" at the top to be someone else, for example to accept a request you sent. Everything is saved in this browser only.</div>
-      <button class="btn small" id="resetDemo">Reset demo data</button>`;
+      <div class="sub small" style="margin-top:14px">Star a friend to make them a favorite. You can get notified when favorites post (see Settings).</div>`;
 
     const on = (attr, fn) => el.querySelectorAll(`[data-${attr}]`).forEach((b) => b.onclick = () => fn(b.dataset[attr]));
-    on("request", (id) => { state.requests.push({ from: state.me, to: id, at: Date.now() }); save(); toast("Request sent to " + user(id).name); render(); });
+    on("request", (id) => {
+      state.requests.push({ from: state.me, to: id, at: Date.now() });
+      if (settingsFor(id).requests) notify(id, "request", `${user(state.me).name} sent you a friend request`);
+      save(); toast("Request sent to " + user(id).name); render(); });
     on("cancel", (id) => { state.requests = state.requests.filter((r) => !(r.from === state.me && r.to === id)); save(); toast("Request canceled"); render(); });
     on("accept", (id) => {
       state.requests = state.requests.filter((r) => !((r.from === id && r.to === state.me) || (r.from === state.me && r.to === id)));
-      state.friendships.push([state.me, id]); save();
+      state.friendships.push([state.me, id]);
+      if (settingsFor(id).requests) notify(id, "accept", `${user(state.me).name} accepted your friend request`);
+      save();
       toast("You and " + user(id).name + " are now friends"); render();
     });
     on("decline", (id) => { state.requests = state.requests.filter((r) => !(r.from === id && r.to === state.me)); save(); render(); });
     on("remove", (id) => {
       state.friendships = state.friendships.filter(([x, y]) => !((x === state.me && y === id) || (y === state.me && x === id)));
+      setFav(state.me, id, false); setFav(id, state.me, false);
       save(); render();
     });
+    bindStars(el);
     $("#friendSearch", el).addEventListener("input", (e) => {
       const q = e.target.value.trim().toLowerCase().replace(/^@/, "");
       $("#addList", el).querySelectorAll(".person").forEach((p) => p.classList.toggle("hidden", !!q && !p.dataset.name.includes(q)));
     });
-    $("#resetDemo", el).onclick = () => { state = window.ROLLING_SEED(); save(); renderViewAs(); fittedFor = null; render(); toast("Demo data reset"); };
+  }
+
+  // ---------- favorites ----------
+  const isFav = (owner, id) => ((state.favorites[owner] || []).includes(id) ? 1 : 0);
+  function setFav(owner, id, on) {
+    const list = new Set(state.favorites[owner] || []);
+    on ? list.add(id) : list.delete(id);
+    state.favorites[owner] = [...list];
+  }
+  const starBtn = (id) => `<button class="star ${isFav(state.me, id) ? "on" : ""}" data-star="${id}"
+    aria-label="${isFav(state.me, id) ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${!!isFav(state.me, id)}">★</button>`;
+  function bindStars(root) {
+    root.querySelectorAll("[data-star]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.star, on = !isFav(state.me, id);
+      setFav(state.me, id, on); save();
+      toast(on ? user(id).name + " is a favorite" : user(id).name + " removed from favorites");
+      render();
+    });
+  }
+
+  // ---------- notification settings ----------
+  const DEFAULT_SETTINGS = {
+    favPosts: true,        // a favorite posts where they're rolling
+    anyPosts: false,       // any friend posts
+    barCrowd: true,        // a bar hits N or more of my friends tonight
+    crowdSize: 3,
+    sameBar: true,         // a friend picks the bar I already picked
+    switched: true,        // a friend changes tonight's bar
+    hyped: false,          // a friend maxes out the excitement meter
+    requests: true,        // friend requests and accepts
+    reminder: false,       // nudge me to post if I haven't yet
+    reminderTime: "20:00",
+    browser: false,        // also show browser notifications
+  };
+  function settingsFor(uid) {
+    state.settings[uid] = Object.assign({}, DEFAULT_SETTINGS, state.settings[uid] || {});
+    return state.settings[uid];
+  }
+
+  // ---------- notifications ----------
+  // In this prototype every user's inbox lives in the same browser, so switching
+  // "Viewing as" shows that person's notifications. A real app would push them.
+  const myNotes = () => (state.notifications || []).filter((n) => n.to === state.me).sort((a, b) => b.at - a.at);
+
+  function notify(to, kind, text, opts = {}) {
+    if (opts.key) {
+      if (state.seen[opts.key]) return;
+      state.seen[opts.key] = 1;
+    }
+    state.notifications.push({ to, kind, text, barId: opts.barId || null, at: opts.at || Date.now(), read: false });
+    const s = settingsFor(to);
+    if (!opts.quiet && s.browser && "Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Rolling" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
+    }
+  }
+
+  // Someone posted (or changed) tonight's bar: tell each of their friends what
+  // they asked to hear about. Only the most relevant alert per friend, plus the
+  // "bar is filling up" alert, which is tracked separately.
+  function onPost(post, prev, opts = {}) {
+    const poster = user(post.userId), bar = BAR_BY_ID[post.barId];
+    const night = nightKey(post.at);
+    const postsTonight = state.posts.filter((p) => nightKey(p.at) === night);
+    for (const fid of friendIds(post.userId)) {
+      const s = settingsFor(fid);
+      const theirs = postsTonight.find((p) => p.userId === fid);
+      const fav = isFav(fid, post.userId);
+      const base = Object.assign({ barId: bar.id }, opts);
+      if (prev && prev.barId !== post.barId) {
+        if (s.switched) notify(fid, "switch", `${poster.name} switched from ${BAR_BY_ID[prev.barId].name} to ${bar.name}`, base);
+      } else if (!prev && s.sameBar && theirs && theirs.barId === post.barId) {
+        notify(fid, "same", `${poster.name} is rolling to ${bar.name} too`, base);
+      } else if (!prev && ((fav && s.favPosts) || s.anyPosts)) {
+        notify(fid, fav ? "fav" : "post", `${poster.name} is rolling to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
+      }
+      if (s.hyped && post.excitement >= 95 && !(prev && prev.excitement >= 95)) {
+        notify(fid, "hype", `${poster.name} is ${hypeLabel(post.excitement).toLowerCase()} for ${bar.name} tonight`, Object.assign({ key: `hype:${fid}:${post.userId}:${night}` }, base));
+      }
+      if (s.barCrowd) {
+        const myFriends = friendIds(fid);
+        const n = postsTonight.filter((p) => p.barId === post.barId && myFriends.has(p.userId)).length;
+        if (n >= s.crowdSize) {
+          notify(fid, "crowd", `${n} of your friends are rolling to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base));
+        }
+      }
+    }
+  }
+
+  // "Remind me to post": fires once a night after the chosen time, if I haven't posted.
+  function checkReminder() {
+    const s = settingsFor(state.me);
+    if (!s.reminder || myPost()) return;
+    const d = new Date();
+    let nowMin = d.getHours() * 60 + d.getMinutes();
+    if (d.getHours() < 6) nowMin += 24 * 60;
+    if (nowMin >= timeKey(s.reminderTime)) {
+      notify(state.me, "reminder", "You haven't posted yet tonight. Where are you rolling?", { key: `rem:${state.me}:${tonight()}` });
+      save();
+    }
+  }
+
+  function renderBell() {
+    const n = myNotes().filter((x) => !x.read).length;
+    const b = $("#bellBadge");
+    b.textContent = n > 9 ? "9+" : n;
+    b.classList.toggle("hidden", !n);
+  }
+
+  const NOTE_ICON = { fav: "★", post: "🍻", same: "🤝", switch: "↪", crowd: "🔥", hype: "⚡", request: "👋", accept: "✓", reminder: "⏰" };
+  function openInbox() {
+    const notes = myNotes();
+    openSheet(`
+      <h3>Notifications</h3>
+      <div class="sub">${notes.length ? "Tonight and recent" : ""}</div>
+      <div class="notes">${notes.length ? notes.slice(0, 40).map((n) => `
+        <button class="note ${n.read ? "" : "unread"}" ${n.barId ? `data-bar="${n.barId}"` : n.kind === "request" ? 'data-goto="friends"' : ""}>
+          <span class="note-ico">${NOTE_ICON[n.kind] || "•"}</span>
+          <span class="note-body"><span>${esc(n.text)}</span><span class="sub small">${ago(n.at)}</span></span>
+        </button>`).join("") : `<div class="empty">Nothing yet. Choose what you hear about in Settings.</div>`}</div>
+      <div class="sheet-actions"><button class="btn" id="closeInbox">Close</button><button class="btn" id="inboxSettings">Settings</button></div>`);
+    notes.forEach((n) => (n.read = true));
+    save(); renderBell();
+    $("#closeInbox").onclick = closeSheet;
+    $("#inboxSettings").onclick = () => { closeSheet(); showTab("settings"); };
+    document.querySelectorAll(".note[data-bar]").forEach((x) => x.onclick = () => { closeSheet(); showTab("map"); focusBar(x.dataset.bar); });
+    document.querySelectorAll(".note[data-goto]").forEach((x) => x.onclick = () => { closeSheet(); showTab(x.dataset.goto); });
+  }
+  $("#bellBtn").addEventListener("click", openInbox);
+  $("#gearBtn").addEventListener("click", () => showTab("settings"));
+
+  // ---------- settings ----------
+  function renderSettings() {
+    const el = $("#tab-settings");
+    const s = settingsFor(state.me);
+    const friends = [...friendIds(state.me)].map(user).sort((a, b) => a.name.localeCompare(b.name));
+    const favCount = friends.filter((u) => isFav(state.me, u.id)).length;
+    const toggle = (key, title, desc, extra = "") => `
+      <div class="setting">
+        <div class="setting-text"><label for="set-${key}" class="setting-title">${title}</label><div class="sub small">${desc}</div>${extra}</div>
+        <label class="switch"><input type="checkbox" id="set-${key}" data-set="${key}" ${s[key] ? "checked" : ""}/><span></span></label>
+      </div>`;
+    const browserState = !("Notification" in window) ? "This browser doesn't support notifications."
+      : Notification.permission === "denied" ? "Blocked in your browser settings. Allow notifications for this site to turn this on."
+      : "Shows alerts while Rolling is open in a tab. Real push alerts come with the iPhone app.";
+
+    el.innerHTML = `
+      <div class="page-head"><button class="btn small" id="settingsBack">‹ Back</button><h1>Settings</h1></div>
+
+      <h2>Notify me when</h2>
+      <div class="card settings">
+        ${toggle("favPosts", "A favorite posts", `When one of your favorites posts where they're rolling. ${favCount ? `You have ${favCount} favorite${favCount > 1 ? "s" : ""}.` : "Star friends below to pick favorites."}`)}
+        ${toggle("anyPosts", "Any friend posts", "Every post from every friend. Can get busy on a Friday.")}
+        ${toggle("barCrowd", "A bar fills up with friends", "Once a night per bar, when enough of your friends pick the same one.",
+          `<div class="stepper" aria-label="How many friends"><button data-step="-1" aria-label="Fewer">−</button><b id="crowdSize">${s.crowdSize}</b><button data-step="1" aria-label="More">＋</button><span class="sub small">or more friends</span></div>`)}
+        ${toggle("sameBar", "A friend picks my bar", "When someone posts the same bar you already posted tonight.")}
+        ${toggle("switched", "A friend switches bars", "When a friend changes tonight's post to a different bar.")}
+        ${toggle("hyped", "A friend is sending it", "When a friend maxes out the excitement meter.")}
+        ${toggle("requests", "Friend requests", "When someone sends you a request or accepts yours.")}
+        ${toggle("reminder", "Remind me to post", "Once a night, if you haven't posted by", `<select class="select inline" id="reminderTime">${TIMES.filter((t) => timeKey(t) <= timeKey("23:00")).map((t) => `<option value="${t}" ${t === s.reminderTime ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select>`)}
+      </div>
+
+      <h2>Favorites</h2>
+      <div class="card list">${friends.length ? friends.map((u) => `
+        <div class="person">${avatar(u, "sm")}<div class="meta"><div class="n">${esc(u.name)}</div></div><div class="actions">${starBtn(u.id)}</div></div>`).join("")
+        : `<div class="sub small">Add friends first, then star your favorites here.</div>`}</div>
+
+      <h2>How you get them</h2>
+      <div class="card settings">
+        <div class="setting"><div class="setting-text"><div class="setting-title">In the app</div><div class="sub small">Always on. Tap the bell at the top.</div></div></div>
+        ${toggle("browser", "Browser notifications", browserState)}
+      </div>
+
+      <h2>Demo</h2>
+      <div class="sub small" style="margin-bottom:10px">There's no sign-in yet. Use "Viewing as" at the top to be someone else; each person has their own settings and notifications. Everything is saved in this browser only.</div>
+      <button class="btn small" id="resetDemo">Reset demo data</button>`;
+
+    el.querySelectorAll("[data-set]").forEach((inp) => inp.onchange = async () => {
+      const key = inp.dataset.set;
+      if (key === "browser" && inp.checked) {
+        if (!("Notification" in window)) { inp.checked = false; return; }
+        const perm = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        if (perm !== "granted") { inp.checked = false; toast("Notifications aren't allowed in this browser"); renderSettings(); return; }
+      }
+      s[key] = inp.checked; save();
+      if (key === "reminder") { checkReminder(); renderBell(); }
+    });
+    el.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => {
+      s.crowdSize = Math.min(8, Math.max(2, s.crowdSize + +b.dataset.step)); save();
+      $("#crowdSize").textContent = s.crowdSize;
+    });
+    $("#reminderTime").onchange = (e) => { s.reminderTime = e.target.value; save(); checkReminder(); renderBell(); };
+    $("#settingsBack").onclick = () => showTab("feed");
+    bindStars(el);
+    $("#resetDemo", el).onclick = () => {
+      state = window.ROLLING_SEED();
+      state.favorites = { u_sam: ["u_jake", "u_maddie"] }; state.settings = {}; state.seen = {};
+      save(); location.reload();
+    };
   }
 
   // ---------- render ----------
   function render() {
     renderBadge();
+    renderBell();
+    if (currentTab === "settings") renderSettings();
     if (currentTab === "feed") renderFeed();
     if (currentTab === "map") renderMap();
     if (currentTab === "friends") renderFriends();
   }
 
+  // First run: build the starting inbox by replaying tonight's posts and pending requests.
+  if (!state.notifications) {
+    state.notifications = [];
+    const posts = tonightsPosts().sort((a, b) => a.at - b.at);
+    for (const p of posts) onPost(p, null, { quiet: true, at: p.at });
+    for (const r of state.requests) if (settingsFor(r.to).requests) notify(r.to, "request", `${user(r.from).name} sent you a friend request`, { quiet: true, at: r.at });
+    save();
+  }
+
   renderViewAs();
+  checkReminder();
   render();
-  // Keep "12m ago" labels fresh.
-  setInterval(() => { if (currentTab === "feed") renderFeed(); }, 60000);
+  // Keep "12m ago" labels fresh and check the posting reminder.
+  setInterval(() => { checkReminder(); if (currentTab === "feed") renderFeed(); }, 60000);
 })();
