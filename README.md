@@ -16,10 +16,10 @@ Everything is saved in your browser (localStorage). There's no sign-in yet, so u
 
 | Tab | What it does |
 | --- | --- |
-| Feed | Your post for tonight, friends' posts (bar, excitement, arrival time, comment), and who hasn't posted yet. Tap a post to open its replies and reply (up to 100 words) |
+| Feed | Your post for tonight (tap "Post where I'm rolling" at the top: pick a bar, most popular first, then arrival time, an optional comment up to 100 words, and the excitement meter; posting again replaces it), friends' posts (bar, excitement, arrival time, comment), and who hasn't posted yet. Tap a post to open its replies and reply (up to 100 words) |
 | Map | Bars where friends are going, with a count on each pin. Tap a pin to see who's going, when they'll get there, and the group's excitement. "Friends' spots" shows every bar your friends have rolled to before, bigger dots for the ones they go to most. Bars your friends never go to aren't shown |
-| ＋ | Pick a bar (most popular first), drag the excitement meter, pick an arrival time, and add an optional comment (up to 100 words). One post per night; posting again replaces it |
 | Friends | One search across your friends, requests and everyone else (friends first). Send, accept or decline friend requests; star favorites; remove friends. Feed and map only show friends |
+| Profile | Your name and @handle, nights out, bars and switches, your top 3 usual spots, and Edit profile. No profile pictures anywhere in the app |
 | 🔔 / ⚙ | Notification inbox and Settings (top right). Choose what you hear about: favorites posting, any friend posting, a bar hitting N+ friends, a friend picking your bar, a friend switching bars, a friend maxing out excitement, friend requests, and a nightly reminder to post. Optional browser notifications while the site is open |
 
 **Popularity:** every post by anyone counts toward a bar, and newer posts count more (a post loses half its weight every 3 weeks). The demo seeds 8 weeks of history so the ranking has something to work with.

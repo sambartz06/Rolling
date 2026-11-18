@@ -93,9 +93,6 @@
     if (m < 60) return m + "m ago";
     return Math.floor(m / 60) + "h ago";
   }
-  function avatar(u, cls = "") {
-    return `<div class="avatar ${cls}" style="background:${u.color}">${esc(u.name[0])}</div>`;
-  }
   function distKm(a, b) {
     const R = 6371, toR = Math.PI / 180;
     const dLat = (b[0] - a[0]) * toR, dLon = (b[1] - a[1]) * toR;
@@ -151,7 +148,6 @@
     if (name === "map") setTimeout(() => map && map.invalidateSize(), 0);
   }
   document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
-  $("#postBtn").addEventListener("click", () => openComposer());
 
   // ---------- view-as switcher (stand-in for sign-in) ----------
   function renderViewAs() {
@@ -190,12 +186,17 @@
     box.classList.remove("hidden");
   }, true);
 
+  // "Jake", "Jake and Tyler", "Jake, Tyler and Olivia"
+  function nameList(n) {
+    return n.length < 2 ? (n[0] || "") : n.slice(0, -1).join(", ") + " and " + n[n.length - 1];
+  }
+
   // ---------- feed ----------
-  // Post layout (Sam, 2026-11-18): name + picture, then bar and arrival time in
+  // Post layout (Sam, 2026-11-18): name (no profile pictures anywhere), then bar and arrival time in
   // small text, then the comment in larger text, replies, and the excitement bar last.
   function postBody(p, opts = {}) {
     const u = user(p.userId), b = BAR_BY_ID[p.barId];
-    return `<div class="post-head">${avatar(u)}
+    return `<div class="post-head">
         <div class="post-meta">
           <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
           <div class="post-where">${(p.history || []).map((h, i) =>
@@ -250,7 +251,7 @@
 
     if (quiet.length) {
       html += `<h2>Haven't posted yet</h2><div class="waiting">` +
-        quiet.map((u) => `<div class="w">${avatar(u, "sm")}${esc(u.name)}</div>`).join("") + `</div>`;
+        quiet.map((u) => `<div class="w">${esc(u.name)}</div>`).join("") + `</div>`;
     }
     el.innerHTML = html;
 
@@ -475,11 +476,12 @@
     openSheet(`
       <h3>${esc(b.name)}</h3>
       <div class="sub">${esc(b.addr || b.type)}${posts.length ? ` · ${posts.length} going tonight` : ""}</div>
+      ${posts.length ? `<div class="goer-names">${esc(nameList(posts.map((p) => p.userId === state.me ? "You" : user(p.userId).name)))}</div>` : ""}
       ${friendSpots().count[barId] ? `<div class="spot-note">Your friends have rolled here ${friendSpots().count[barId]} time${friendSpots().count[barId] > 1 ? "s" : ""} before</div>` : ""}
       ${avg !== null ? `<div class="field-label">Group excitement</div>${meter(avg)}` : ""}
       <div class="goers">${posts.length ? posts.map((p) => {
         const u = user(p.userId);
-        return `<div class="g">${avatar(u, "sm")}<div class="g-body">
+        return `<div class="g"><div class="g-body">
           <div><b>${u.id === state.me ? "You" : esc(u.name)}</b> <span class="sub small">· ~${fmtTime(p.arrive)}</span></div>
           ${meter(p.excitement, true)}
           ${p.comment ? `<div class="small g-comment">${esc(p.comment)}</div>` : ""}
@@ -503,7 +505,7 @@
     const others = state.users.filter((u) => u.id !== state.me && !f.has(u.id) && !gotFrom.has(u.id));
     const mutuals = (uid) => [...friendIds(uid)].filter((x) => f.has(x)).length;
     const person = (u, sub, actions) => `
-      <div class="person" data-name="${esc((u.name + " " + u.handle).toLowerCase())}">${avatar(u)}
+      <div class="person" data-name="${esc((u.name + " " + u.handle).toLowerCase())}">
         <div class="meta"><div class="n">${esc(u.name)}</div><div class="h">@${esc(u.handle)}${sub ? " · " + sub : ""}</div></div>
         <div class="actions">${actions}</div></div>`;
 
@@ -605,7 +607,7 @@
       <div class="field-label">${rs.length} ${rs.length === 1 ? "reply" : "replies"}</div>
       <div class="replies">${rs.map((r) => {
         const ru = user(r.userId);
-        return `<div class="reply">${avatar(ru, "sm")}<div class="reply-body">
+        return `<div class="reply"><div class="reply-body">
           <div><b>${r.userId === state.me ? "You" : esc(ru.name)}</b> <span class="sub small">· ${ago(r.at)}</span></div>
           <div class="reply-text">${esc(r.text)}</div></div></div>`;
       }).join("") || `<div class="sub small">No replies yet. Start the conversation.</div>`}</div>
@@ -811,7 +813,7 @@
 
       <h2>Favorites</h2>
       <div class="card list">${friends.length ? friends.map((u) => `
-        <div class="person">${avatar(u, "sm")}<div class="meta"><div class="n">${esc(u.name)}</div></div><div class="actions">${starBtn(u.id)}</div></div>`).join("")
+        <div class="person"><div class="meta"><div class="n">${esc(u.name)}</div></div><div class="actions">${starBtn(u.id)}</div></div>`).join("")
         : `<div class="sub small">Add friends first, then star your favorites here.</div>`}</div>
 
       <h2>How you get them</h2>
@@ -848,6 +850,53 @@
     };
   }
 
+  // ---------- profile ----------
+  // First version, kept simple on purpose: who you are, a few counts, your usual spots.
+  function renderProfile() {
+    const el = $("#tab-profile");
+    const me = user(state.me);
+    const mine = state.posts.filter((p) => p.userId === state.me);
+    const nights = new Set(mine.map((p) => nightKey(p.at))).size;
+    const counts = {};
+    for (const p of mine) {
+      counts[p.barId] = (counts[p.barId] || 0) + 1;
+      for (const h of p.history || []) counts[h.barId] = (counts[h.barId] || 0) + 1;
+    }
+    const switches = mine.reduce((a, p) => a + (p.history || []).length, 0);
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    el.innerHTML = `
+      <div class="profile-head">
+        <div class="profile-name">${esc(me.name)}</div>
+        <div class="sub">@${esc(me.handle)}</div>
+        <button class="btn small" id="editProfile">Edit profile</button>
+      </div>
+      <div class="card stats">
+        <div><b>${nights}</b><span>nights out</span></div>
+        <div><b>${Object.keys(counts).length}</b><span>bars</span></div>
+        <div><b>${switches}</b><span>switches</span></div>
+      </div>
+      <h2>Your usual spots</h2>
+      <div class="card list">${top.length ? top.map(([id, n], i) => `
+        <button class="spot-row" data-bar="${id}"><span class="rank top">${i + 1}</span>
+          <span class="info"><div class="n">${esc(BAR_BY_ID[id].name)}</div><div class="sub small">${n} night${n > 1 ? "s" : ""}</div></span></button>`).join("")
+        : `<div class="sub small">Post where you're rolling and your favorite bars show up here.</div>`}</div>`;
+    el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
+    $("#editProfile").onclick = () => {
+      openSheet(`<h3>Edit profile</h3><div class="sub">Your friends see this.</div>
+        <label class="field-label" for="pfName">Name</label><input class="search" id="pfName" maxlength="30" value="${esc(me.name)}" />
+        <label class="field-label" for="pfHandle">Handle</label><input class="search" id="pfHandle" maxlength="20" value="${esc(me.handle)}" />
+        <div class="small counter" id="pfErr"></div>
+        <div class="sheet-actions"><button class="btn" id="pfCancel">Cancel</button><button class="btn primary" id="pfSave">Save</button></div>`);
+      $("#pfCancel").onclick = closeSheet;
+      $("#pfSave").onclick = () => {
+        const name = $("#pfName").value.trim(), handle = $("#pfHandle").value.trim().replace(/^@/, "").toLowerCase();
+        if (!name || !/^[a-z0-9_.]{2,20}$/.test(handle)) { $("#pfErr").textContent = "Add a name, and a handle of 2 to 20 letters, numbers, _ or ."; return; }
+        if (state.users.some((u) => u.id !== me.id && u.handle === handle)) { $("#pfErr").textContent = "@" + handle + " is taken."; return; }
+        me.name = name; me.handle = handle; save(); closeSheet(); renderViewAs(); render(); toast("Profile saved");
+      };
+    };
+  }
+
   // ---------- render ----------
   function render() {
     renderBadge();
@@ -856,6 +905,7 @@
     if (currentTab === "feed") renderFeed();
     if (currentTab === "map") renderMap();
     if (currentTab === "friends") renderFriends();
+    if (currentTab === "profile") renderProfile();
   }
 
   // First run: build the starting inbox by replaying tonight's posts and pending requests.
