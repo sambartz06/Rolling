@@ -215,7 +215,7 @@
     const lit = name === "thread" ? "feed" : name;
     document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === lit));
     render();
-    if (name === "map") setTimeout(() => map && map.invalidateSize({ pan: false }), 0);
+    if (name === "map") setTimeout(restoreMapView, 0);
   }
   document.querySelectorAll(".tabbar [data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
@@ -453,7 +453,16 @@
   }
 
   // ---------- map ----------
-  let map, barLayer, countLayer, showSpots = true, fittedFor = null;
+  let map, barLayer, countLayer, showSpots = true, fittedFor = null, mapView = null;
+  // Re-measure the map and put back the last view, e.g. after the window was
+  // resized or a phone rotated while another tab was showing.
+  function restoreMapView() {
+    if (!map || currentTab !== "map") return;
+    const saved = mapView; // re-measuring moves the map, so remember the view first
+    map.invalidateSize({ pan: false });
+    if (saved) map.setView(saved[0], saved[1], { animate: false });
+  }
+  window.addEventListener("resize", restoreMapView);
 
   // How often my friends have been to each bar (before tonight), recency-weighted.
   function friendSpots() {
@@ -467,7 +476,10 @@
   }
   function initMap() {
     if (map) return;
-    map = L.map("map", { zoomControl: false }).setView(CAMPUS, 15);
+    // We handle window resizes ourselves (see restoreMapView): Leaflet's own
+    // handler gets confused if the window changes size while the map is hidden.
+    map = L.map("map", { zoomControl: false, trackResize: false }).setView(CAMPUS, 15);
+    map.on("moveend", () => { if (currentTab === "map" && map.getSize().x) mapView = [map.getCenter(), map.getZoom()]; });
     // Esri light gray basemap: free, no API key, attribution required.
     const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
     const attribution = 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors | Bars: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
