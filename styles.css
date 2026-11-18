@@ -172,14 +172,14 @@ textarea.comment:focus { border-color: var(--red); }
 .sheet-actions .btn { flex: 1; padding: 13px; }
 
 /* Map */
-.count-marker { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--red); color: var(--white); font-family: var(--display); font-weight: 800; font-size: 16px;
-  border: 3px solid var(--white); box-shadow: 0 4px 12px rgba(60,10,12,.35); }
+.count-marker { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--red); color: var(--white); font-family: var(--display); font-weight: 800; font-size: 13px;
+  border: 2.5px solid var(--white); box-sizing: border-box; box-shadow: 0 4px 12px rgba(60,10,12,.35); }
 .count-marker.me { box-shadow: 0 0 0 3px var(--red), 0 4px 12px rgba(60,10,12,.35); }
-.count-marker.only-me { background: var(--white); color: var(--red); border-color: var(--red); font-size: 11px; }
+.count-marker.only-me { background: var(--white); color: var(--red); border-color: var(--red); font-size: 9px; }
 .bar-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 3px solid var(--red); opacity: .8; }
 .map-legend { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 450; display: flex;
-  justify-content: space-between; align-items: center; gap: 8px; pointer-events: none; }
+  justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none; }
 .map-legend > * { pointer-events: auto; }
 .pill { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 13px;
   box-shadow: var(--shadow); }
@@ -280,8 +280,12 @@ textarea.comment:focus { border-color: var(--red); }
 .reply-compose-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-/* Friends' spots on the map: size = how often your friends go */
-.spot { border-radius: 50%; background: rgba(197, 5, 12, .22); border: 2px solid var(--red); box-sizing: border-box; }
+/* Friends' spots on the map: color (pale to deep red) and a little size = how often your friends go */
+.spot { border-radius: 50%; border: 1.5px solid var(--white); box-sizing: border-box; box-shadow: 0 1px 3px rgba(60,10,12,.3); }
+.legend-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.heat-key { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; box-shadow: var(--shadow); }
+.heat-key .ramp { width: 56px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgb(243,185,187), var(--red) 60%, rgb(122,0,6)); }
 .spot-note { font-size: 13px; color: var(--red); font-weight: 600; margin: -8px 0 4px; }
 #friendsBody > h2:first-child { margin-top: 18px; }
 

@@ -415,6 +415,14 @@
     return by;
   }
 
+  // Map color scale, 0 to 1: pale red, then Badger red, then deep red.
+  const HEAT = [[243, 185, 187], [197, 5, 12], [122, 0, 6]];
+  function heat(t) {
+    t = Math.max(0, Math.min(1, t));
+    const [a, b, k] = t < 0.6 ? [HEAT[0], HEAT[1], t / 0.6] : [HEAT[1], HEAT[2], (t - 0.6) / 0.4];
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(",")})`;
+  }
+
   function renderMap() {
     initMap();
     barLayer.clearLayers();
@@ -423,26 +431,30 @@
     const mine = myPost();
 
     // Friends' spots: every bar your friends have been to before. The more
-    // (and more recently) they go, the bigger the dot. Bars they've never
-    // picked aren't shown at all.
+    // (and more recently) they go, the deeper the red and the slightly bigger
+    // the dot (Sam, 2026-11-18: color does most of the work so no dot gets
+    // huge). Bars they've never picked aren't shown at all.
     if (showSpots) {
       const { score } = friendSpots();
       const max = Math.max(1, ...Object.values(score));
       for (const [barId, sc] of Object.entries(score)) {
         if (by[barId]) continue;
-        const b = BAR_BY_ID[barId];
-        const d = Math.round(10 + 34 * (sc / max));
-        L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", html: `<div class="spot" style="width:${d}px;height:${d}px"></div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }), zIndexOffset: d })
+        const b = BAR_BY_ID[barId], t = sc / max;
+        const d = Math.round(10 + 14 * t); // 5 to 12px radius
+        L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", html: `<div class="spot" style="width:${d}px;height:${d}px;background:${heat(t)}"></div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }), zIndexOffset: d })
           .on("click", () => openBar(barId)).addTo(barLayer);
       }
     }
+    // Tonight: same color scale, by how many friends are going.
+    const maxHere = Math.max(1, ...Object.values(by).map((ps) => ps.filter((p) => p.userId !== state.me).length));
     for (const [barId, posts] of Object.entries(by)) {
       const b = BAR_BY_ID[barId];
       const isMine = mine && mine.barId === barId;
       const friendsHere = posts.filter((p) => p.userId !== state.me).length;
       const label = friendsHere ? friendsHere : "You";
+      const t = friendsHere / maxHere, d = friendsHere ? Math.round(24 + 8 * t) : 30;
       L.marker([b.lat, b.lon], {
-        icon: L.divIcon({ className: "", html: `<div class="count-marker ${isMine ? "me" : ""} ${friendsHere ? "" : "only-me"}">${label}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] }),
+        icon: L.divIcon({ className: "", html: `<div class="count-marker ${isMine ? "me" : ""} ${friendsHere ? "" : "only-me"}" style="width:${d}px;height:${d}px;${friendsHere ? `background:${heat(0.35 + 0.65 * t)}` : ""}">${label}</div>`, iconSize: [d, d], iconAnchor: [d / 2, d / 2] }),
         zIndexOffset: 1000 + friendsHere,
       }).on("click", () => openBar(barId)).addTo(countLayer);
     }
@@ -458,7 +470,10 @@
     const totalFriends = visiblePosts().filter((p) => p.userId !== state.me).length;
     const barsCount = Object.keys(by).filter((id) => by[id].some((p) => p.userId !== state.me)).length;
     $("#mapLegend").innerHTML = `
-      <div class="pill"><b>${totalFriends}</b> friend${totalFriends === 1 ? "" : "s"} out at <b>${barsCount}</b> bar${barsCount === 1 ? "" : "s"}</div>
+      <div class="legend-left">
+        <div class="pill"><b>${totalFriends}</b> friend${totalFriends === 1 ? "" : "s"} out at <b>${barsCount}</b> bar${barsCount === 1 ? "" : "s"}</div>
+        <div class="heat-key">Less <span class="ramp"></span> More</div>
+      </div>
       <label class="pill toggle"><input type="checkbox" id="allBars" ${showSpots ? "checked" : ""}/> Friends' spots</label>`;
     $("#allBars").onchange = (e) => { showSpots = e.target.checked; renderMap(); };
   }
