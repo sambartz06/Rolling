@@ -1,4 +1,4 @@
-/* Rolling: web prototype.
+/* Word ("what's the word?"): web prototype.
  * No build step and no backend: state lives in localStorage so it runs as a static
  * site (GitHub Pages) or by opening index.html. The data shapes (users, friendships,
  * requests, posts) are the ones a real backend would store. */
@@ -231,9 +231,9 @@
     } else {
       html += `<div class="card mine">
         <div class="label">Tonight</div>
-        <div class="bar">Where are you rolling?</div>
-        <div class="sub small">One post a night. Your friends see it in their feed and on the map.</div>
-        <button class="btn primary" id="startPost">Post where I'm rolling</button>
+        <div class="bar">What's the word?</div>
+        <div class="sub small">Where are you headed tonight? One post a night. Your friends see it in their feed and on the map.</div>
+        <button class="btn primary" id="startPost">Post where I'm headed</button>
       </div>`;
     }
 
@@ -241,7 +241,7 @@
     if (!posts.length) {
       html += friendIds(state.me).size
         ? `<div class="empty">None of your friends have posted yet tonight.</div>`
-        : `<div class="empty">Add some friends to see where they're rolling.<br><br><button class="btn small" data-goto="friends">Find friends</button></div>`;
+        : `<div class="empty">Add some friends to see where they're headed.<br><br><button class="btn small" data-goto="friends">Find friends</button></div>`;
     } else {
       html += `<div class="stack">` + posts.map((p) => {
         const u = user(p.userId), b = BAR_BY_ID[p.barId];
@@ -294,7 +294,7 @@
 
   function renderPick(draft) {
     openSheet(`
-      <h3>Where are you rolling tonight?</h3>
+      <h3>What's the word?</h3>
       <div class="sub">Most popular bars first</div>
       <input class="search" id="barSearch" placeholder="Search bars" autocomplete="off" />
       <div class="barlist" id="barList"></div>`);
@@ -377,7 +377,7 @@
       onPost(post, prev);
       save();
       closeSheet();
-      toast("You're rolling to " + b.name);
+      toast("You're headed to " + b.name);
       render();
     };
   }
@@ -385,7 +385,7 @@
   // ---------- map ----------
   let map, barLayer, countLayer, showSpots = true, fittedFor = null;
 
-  // How often my friends have rolled to each bar (before tonight), recency-weighted.
+  // How often my friends have been to each bar (before tonight), recency-weighted.
   function friendSpots() {
     const f = friendIds(state.me), now = Date.now(), score = {}, count = {};
     for (const p of state.posts) {
@@ -420,7 +420,7 @@
     const by = goersByBar();
     const mine = myPost();
 
-    // Friends' spots: every bar your friends have rolled to before. The more
+    // Friends' spots: every bar your friends have been to before. The more
     // (and more recently) they go, the bigger the dot. Bars they've never
     // picked aren't shown at all.
     if (showSpots) {
@@ -477,7 +477,7 @@
       <h3>${esc(b.name)}</h3>
       <div class="sub">${esc(b.addr || b.type)}${posts.length ? ` · ${posts.length} going tonight` : ""}</div>
       ${posts.length ? `<div class="goer-names">${esc(nameList(posts.map((p) => p.userId === state.me ? "You" : user(p.userId).name)))}</div>` : ""}
-      ${friendSpots().count[barId] ? `<div class="spot-note">Your friends have rolled here ${friendSpots().count[barId]} time${friendSpots().count[barId] > 1 ? "s" : ""} before</div>` : ""}
+      ${friendSpots().count[barId] ? `<div class="spot-note">Your friends have been here ${friendSpots().count[barId]} time${friendSpots().count[barId] > 1 ? "s" : ""} before</div>` : ""}
       ${avg !== null ? `<div class="field-label">Group excitement</div>${meter(avg)}` : ""}
       <div class="goers">${posts.length ? posts.map((p) => {
         const u = user(p.userId);
@@ -489,7 +489,7 @@
       }).join("") : `<div class="empty" style="padding:14px">No friends here yet tonight.</div>`}</div>
       <div class="sheet-actions">
         <button class="btn" id="closeBar">Close</button>
-        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">I'm rolling here</button>`}
+        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">I'm headed here</button>`}
       </div>`);
     $("#closeBar").onclick = closeSheet;
     const r = $("#rollHere"); if (r) r.onclick = () => openComposer(barId);
@@ -667,7 +667,7 @@
 
   // ---------- notification settings ----------
   const DEFAULT_SETTINGS = {
-    favPosts: true,        // a favorite posts where they're rolling
+    favPosts: true,        // a favorite posts where they're headed
     anyPosts: false,       // any friend posts
     barCrowd: true,        // a bar hits N or more of my friends tonight
     crowdSize: 3,
@@ -698,7 +698,7 @@
     state.notifications.push({ to, kind, text, barId: opts.barId || null, post: opts.post || null, at: opts.at || Date.now(), read: false });
     const s = settingsFor(to);
     if (!opts.quiet && s.browser && "Notification" in window && Notification.permission === "granted") {
-      try { new Notification("Rolling" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
+      try { new Notification("Word" + (to === state.me ? "" : " · for " + user(to).name), { body: text }); } catch (e) {}
     }
   }
 
@@ -718,9 +718,9 @@
       if (prev && prev.barId !== post.barId) {
         if (s.switched) notify(fid, "switch", `${poster.name} switched from ${BAR_BY_ID[prev.barId].name} to ${bar.name}`, base);
       } else if (!prev && s.sameBar && theirs && theirs.barId === post.barId) {
-        notify(fid, "same", `${poster.name} is rolling to ${bar.name} too`, base);
+        notify(fid, "same", `${poster.name} is headed to ${bar.name} too`, base);
       } else if (!prev && ((fav && s.favPosts) || s.anyPosts)) {
-        notify(fid, fav ? "fav" : "post", `${poster.name} is rolling to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
+        notify(fid, fav ? "fav" : "post", `${poster.name} is headed to ${bar.name}, around ${fmtTime(post.arrive)}`, base);
       }
       if (s.hyped && post.excitement >= 95 && !(prev && prev.excitement >= 95)) {
         notify(fid, "hype", `${poster.name} is ${hypeLabel(post.excitement).toLowerCase()} for ${bar.name} tonight`, Object.assign({ key: `hype:${fid}:${post.userId}:${night}` }, base));
@@ -729,7 +729,7 @@
         const myFriends = friendIds(fid);
         const n = postsTonight.filter((p) => p.barId === post.barId && myFriends.has(p.userId)).length;
         if (n >= s.crowdSize) {
-          notify(fid, "crowd", `${n} of your friends are rolling to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base, { post: null }));
+          notify(fid, "crowd", `${n} of your friends are headed to ${bar.name} tonight`, Object.assign({ key: `crowd:${fid}:${bar.id}:${night}` }, base, { post: null }));
         }
       }
     }
@@ -743,7 +743,7 @@
     let nowMin = d.getHours() * 60 + d.getMinutes();
     if (d.getHours() < 6) nowMin += 24 * 60;
     if (nowMin >= timeKey(s.reminderTime)) {
-      notify(state.me, "reminder", "You haven't posted yet tonight. Where are you rolling?", { key: `rem:${state.me}:${tonight()}` });
+      notify(state.me, "reminder", "You haven't posted yet tonight. What's the word? Where are you headed?", { key: `rem:${state.me}:${tonight()}` });
       save();
     }
   }
@@ -792,14 +792,14 @@
       </div>`;
     const browserState = !("Notification" in window) ? "This browser doesn't support notifications."
       : Notification.permission === "denied" ? "Blocked in your browser settings. Allow notifications for this site to turn this on."
-      : "Shows alerts while Rolling is open in a tab. Real push alerts come with the iPhone app.";
+      : "Shows alerts while Word is open in a tab. Real push alerts come with the iPhone app.";
 
     el.innerHTML = `
       <div class="page-head"><button class="btn small" id="settingsBack">‹ Back</button><h1>Settings</h1></div>
 
       <h2>Notify me when</h2>
       <div class="card settings">
-        ${toggle("favPosts", "A favorite posts", `When one of your favorites posts where they're rolling. ${favCount ? `You have ${favCount} favorite${favCount > 1 ? "s" : ""}.` : "Star friends below to pick favorites."}`)}
+        ${toggle("favPosts", "A favorite posts", `When one of your favorites posts where they're headed. ${favCount ? `You have ${favCount} favorite${favCount > 1 ? "s" : ""}.` : "Star friends below to pick favorites."}`)}
         ${toggle("anyPosts", "Any friend posts", "Every post from every friend. Can get busy on a Friday.")}
         ${toggle("barCrowd", "A bar fills up with friends", "Once a night per bar, when enough of your friends pick the same one.",
           `<div class="stepper" aria-label="How many friends"><button data-step="-1" aria-label="Fewer">−</button><b id="crowdSize">${s.crowdSize}</b><button data-step="1" aria-label="More">＋</button><span class="sub small">or more friends</span></div>`)}
@@ -879,7 +879,7 @@
       <div class="card list">${top.length ? top.map(([id, n], i) => `
         <button class="spot-row" data-bar="${id}"><span class="rank top">${i + 1}</span>
           <span class="info"><div class="n">${esc(BAR_BY_ID[id].name)}</div><div class="sub small">${n} night${n > 1 ? "s" : ""}</div></span></button>`).join("")
-        : `<div class="sub small">Post where you're rolling and your favorite bars show up here.</div>`}</div>`;
+        : `<div class="sub small">Post where you're headed and your favorite bars show up here.</div>`}</div>`;
     el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = () => { showTab("map"); focusBar(n.dataset.bar); });
     $("#editProfile").onclick = () => {
       openSheet(`<h3>Edit profile</h3><div class="sub">Your friends see this.</div>
@@ -906,6 +906,11 @@
     if (currentTab === "map") renderMap();
     if (currentTab === "friends") renderFriends();
     if (currentTab === "profile") renderProfile();
+  }
+
+  // Rename (Rolling -> Word): reword alerts saved before the rename.
+  for (const n of state.notifications || []) {
+    n.text = n.text.replace(/ (is|are) rolling to /, " $1 headed to ").replace("Where are you rolling?", "What's the word? Where are you headed?");
   }
 
   // First run: build the starting inbox by replaying tonight's posts and pending requests.
