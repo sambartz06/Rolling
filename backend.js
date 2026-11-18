@@ -22,6 +22,7 @@ window.WordBackend = (function () {
   const toPost = (r) => ({
     id: r.id, userId: r.user_id, barId: r.bar_id, at: ms(r.posted_at), night: r.night,
     excitement: r.excitement, arrive: r.arrive, comment: r.comment || "", history: r.history || [],
+    ...(r.bail ? { bail: r.bail } : {}),
   });
 
   // ---------- account ----------
@@ -68,10 +69,11 @@ window.WordBackend = (function () {
   // ---------- writes ----------
   const api = {
     // Tonight's post. Same id all night, so replies stay attached when you switch bars.
-    savePost: async (p) => ok(await sb.from("posts").upsert({
+    // `bail` ("didn't make it out") is only sent when it's set or being cleared.
+    savePost: async (p) => ok(await sb.from("posts").upsert(Object.assign({
       id: p.id, night: p.night, bar_id: p.barId, arrive: p.arrive, excitement: p.excitement,
       comment: p.comment, history: p.history || [], posted_at: iso(p.at),
-    }, { onConflict: "id" })),
+    }, "bail" in p ? { bail: p.bail || null } : {}), { onConflict: "id" })),
     addReply: async (r) => ok(await sb.from("replies").insert({ id: r.id, post_id: r.post, text: r.text })),
     sendRequest: async (to) => ok(await sb.from("friend_requests").insert({ to_id: to })),
     deleteRequest: async (from, to) => ok(await sb.from("friend_requests").delete().eq("from_id", from).eq("to_id", to)),
