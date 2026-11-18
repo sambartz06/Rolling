@@ -318,8 +318,11 @@
         ${postBody(mine, { replies: true })}
         <div class="mine-actions">${bailed(mine)
           ? `<button class="btn small" id="editMine">We're so back</button>`
-          : `<button class="btn small" id="editMine">${isOut(mine) ? "Update where I am" : "Change tonight's post"}</button>
-             <button class="btn small ghost" id="bailMine">Didn't make it out</button>`}</div>
+          : isOut(mine)
+            ? `<button class="btn small" id="editMine">Update where I am</button>
+               <button class="btn small ghost" id="bailMine">Didn't make it out</button>`
+            // Still headed there (before their arrival time): no "Didn't make it out" yet (Sam, 2026-11-18).
+            : `<button class="btn small" id="editMine">Change tonight's post</button>`}</div>
       </div>`;
     } else {
       html += `<div class="card mine">
