@@ -166,6 +166,19 @@
   }
 
   // ---------- feed ----------
+  // Post layout (Sam, 2026-11-18): name + picture, then bar and arrival time in
+  // small text, then the comment in larger text, replies, and the excitement bar last.
+  function postBody(p, opts = {}) {
+    const u = user(p.userId), b = BAR_BY_ID[p.barId];
+    return `<div class="post-head">${avatar(u)}
+        <div class="post-meta">
+          <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
+          <div class="post-where"><b data-bar="${b.id}">${esc(b.name)}</b> · ~${fmtTime(p.arrive)}</div>
+        </div></div>
+      ${p.comment ? `<div class="post-text">${esc(p.comment)}</div>` : ""}
+      ${opts.replies ? replyBar(p) : ""}
+      <div class="post-meter">${meter(p.excitement)}</div>`;
+  }
   function postDetails(p) {
     return `${meter(p.excitement)}
       <div class="meta-row">${p.arrive ? `<span class="arrive">Arriving ~${fmtTime(p.arrive)}</span>` : ""}</div>
@@ -206,15 +219,7 @@
     } else {
       html += `<div class="stack">` + posts.map((p) => {
         const u = user(p.userId), b = BAR_BY_ID[p.barId];
-        return `<div class="card post" data-thread="${pid(p)}" id="post-${pid(p).replace(/[^\w-]/g, "_")}">
-          ${avatar(u)}
-          <div class="body">
-            <div class="line1"><span class="who">${esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
-            <div class="where">rolling to <b data-bar="${b.id}">${esc(b.name)}</b></div>
-            ${postDetails(p)}
-            ${replyBar(p)}
-          </div>
-        </div>`;
+        return `<div class="card post" data-thread="${pid(p)}">${postBody(p, { replies: true })}</div>`;
       }).join("") + `</div>`;
     }
 
@@ -566,11 +571,7 @@
     const u = user(p.userId), b = BAR_BY_ID[p.barId], rs = repliesFor(pid(p));
     openSheet(`
       <div class="thread-post ${opts.highlight ? "flash" : ""}">
-        <div class="post">${avatar(u)}<div class="body">
-          <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}</span><span class="time">${ago(p.at)}</span></div>
-          <div class="where">rolling to <b data-bar="${b.id}">${esc(b.name)}</b></div>
-          ${postDetails(p)}
-        </div></div>
+        ${postBody(p)}
       </div>
       <div class="field-label">${rs.length} ${rs.length === 1 ? "reply" : "replies"}</div>
       <div class="replies">${rs.map((r) => {
