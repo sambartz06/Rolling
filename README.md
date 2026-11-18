@@ -38,7 +38,7 @@ A "night" runs 6 AM to 6 AM, so a 1 AM post still counts for tonight.
 - `index.html`, `styles.css`, `app.js`: the app (plain HTML/CSS/JS, no build step)
 - `backend.js`: reads and saves data in Supabase, and handles sign-in
 - `config.js`: the Supabase project address and public key (empty = demo mode)
-- `supabase/schema.sql`: database tables and security rules; `supabase/SETUP.md`: how to set it up
+- `supabase/schema.sql`: database tables and security rules; `supabase/SETUP.md`: how to set it up; `supabase/bug_reports.sql`: the bug-report table (Settings > Report a bug; read them in Supabase > Table Editor > bug_reports)
 - `bars.js`: 142 Madison bars, pubs, clubs and beer gardens from OpenStreetMap (see `scripts/fetch-bars.md`)
 - `data.js`: sample users and posts for demo mode
 - `vendor/`: Leaflet 1.9.4 (map library) and supabase-js 2.118.0 (MIT)

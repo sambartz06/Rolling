@@ -82,6 +82,9 @@ window.WordBackend = (function () {
       ? ok(await sb.from("favorites").upsert({ friend }, { onConflict: "owner,friend", ignoreDuplicates: true }))
       : ok(await sb.from("favorites").delete().eq("friend", friend)),
     saveSettings: async (me, prefs) => ok(await sb.from("user_settings").upsert({ user_id: me, prefs, updated_at: iso(Date.now()) })),
+    reportBug: async (r) => ok(await sb.from("bug_reports").insert({
+      what: r.what, steps: r.steps, screen: r.screen, device: r.device.slice(0, 500), page: r.page.slice(0, 300),
+    })),
     updateProfile: async (me, name, handle) => ok(await sb.from("profiles").update({ name, handle }).eq("id", me)),
   };
 

@@ -12,6 +12,11 @@
   const BARS = window.ROLLING_BARS;
   const BAR_BY_ID = Object.fromEntries(BARS.map((b) => [b.id, b]));
   const CAMPUS = [43.0745, -89.3925]; // Library Mall / State St
+  // Always shown on the map, even before anyone has history (Sam, 2026-11-18):
+  // State Street Brats, Chasers II, Moon Bar, The Double U, Monday's, Wando's,
+  // Jay's, City Bar, Sconnie Bar.
+  const STARTER_BARS = ["w886357869", "n2522840399", "n13120355381", "n4479808708", "w1441901386",
+    "w875584137", "w875584136", "w1435231298", "w369451920"];
   const COMMENT_WORDS = 100;
   const DAY = 24 * 3600 * 1000;
 
@@ -181,8 +186,9 @@
   }
 
   // ---------- tabs ----------
-  let currentTab = "feed";
+  let currentTab = "feed", lastTab = "feed";
   function showTab(name) {
+    if (name !== currentTab) lastTab = currentTab;
     currentTab = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + name));
     const lit = name === "thread" ? "feed" : name;
@@ -475,9 +481,12 @@
     // (and more recently) they go, the deeper the red and the slightly bigger
     // the dot (Sam, 2026-11-18: color does most of the work so no dot gets
     // huge). Bars they've never picked aren't shown at all.
-    if (showSpots) {
-      const { score } = friendSpots();
+    // Starter bars (Sam, 2026-11-18) are always on the map, palest red until
+    // friends' history makes them deeper, so a brand-new account isn't empty.
+    {
+      const { score } = showSpots ? friendSpots() : { score: {} };
       const max = Math.max(1, ...Object.values(score));
+      for (const id of STARTER_BARS) if (BAR_BY_ID[id] && !(id in score)) score[id] = 0;
       for (const [barId, sc] of Object.entries(score)) {
         if (by[barId]) continue;
         const b = BAR_BY_ID[barId], t = sc / max;
@@ -927,6 +936,13 @@
         ${toggle("browser", "Browser notifications", browserState)}
       </div>
 
+      <h2>Help</h2>
+      <div class="card settings">
+        <div class="setting"><div class="setting-text"><div class="setting-title">Found a bug?</div>
+          <div class="sub small">Tell us what went wrong. It goes straight to Sam.</div></div>
+          <button class="btn small primary" id="reportBug">Report a bug</button></div>
+      </div>
+
       ${LIVE ? `
       <h2>Account</h2>
       <div class="sub small" style="margin-bottom:10px">Signed in as ${esc(account.email || "")}</div>
@@ -951,12 +967,52 @@
     $("#reminderTime").onchange = (e) => { s.reminderTime = e.target.value; saveSettings(); };
     $("#settingsBack").onclick = () => showTab("feed");
     bindStars(el);
+    $("#reportBug", el).onclick = openBugReport;
     if (LIVE) { $("#signOut2", el).onclick = signOut; return; }
     $("#resetDemo", el).onclick = () => {
       state = window.ROLLING_SEED();
       state.favorites = { u_sam: ["u_jake", "u_maddie"] }; state.settings = {}; state.seen = {};
       save(); location.reload();
     };
+  }
+
+  // ---------- report a bug ----------
+  // Saved to the bug_reports table in Supabase with who sent it, when, which
+  // screen they were on and their browser/device. Only Sam can read them, in the
+  // Supabase Table Editor.
+  function openBugReport() {
+    const screenName = { feed: "Feed", map: "Map", friends: "Friends", profile: "Profile", thread: "Replies", settings: "Settings" }[lastTab] || lastTab;
+    openSheet(`<h3>Report a bug</h3><div class="sub">Thanks for testing Word. Every report helps.</div>
+      <label class="field-label" for="bugWhat">What went wrong?</label>
+      <textarea class="comment" id="bugWhat" maxlength="2000" placeholder="e.g. I tapped Post and nothing happened"></textarea>
+      <label class="field-label" for="bugSteps">What were you doing right before? (optional)</label>
+      <textarea class="comment" id="bugSteps" maxlength="2000" placeholder="e.g. Changed my bar from Chasers to KK, then hit Update"></textarea>
+      <label class="field-label" for="bugScreen">Where in the app?</label>
+      <select class="select" id="bugScreen">${["Feed", "Map", "Friends", "Profile", "Replies", "Notifications", "Settings", "Sign in / sign up", "Somewhere else"]
+        .map((n) => `<option ${n === screenName ? "selected" : ""}>${n}</option>`).join("")}</select>
+      <div class="small counter" id="bugErr"></div>
+      <div class="sheet-actions"><button class="btn" id="bugCancel">Cancel</button><button class="btn primary" id="bugSend">Send report</button></div>`);
+    $("#bugCancel").onclick = closeSheet;
+    $("#bugWhat").oninput = () => { $("#bugErr").textContent = ""; };
+    $("#bugSend").onclick = async () => {
+      const what = $("#bugWhat").value.trim();
+      if (!what) { $("#bugErr").textContent = "Describe what went wrong first."; return; }
+      if (!LIVE) { closeSheet(); toast("Demo mode: bug reports are only saved on the live site"); return; }
+      const report = {
+        what, steps: $("#bugSteps").value.trim(), screen: $("#bugScreen").value,
+        device: `${navigator.userAgent} | screen ${screen.width}x${screen.height} | window ${innerWidth}x${innerHeight}`,
+        page: location.href.split("#")[0],
+      };
+      $("#bugSend").disabled = true;
+      try { await API.reportBug(report); } catch (e) {
+        console.error(e);
+        $("#bugSend").disabled = false;
+        $("#bugErr").textContent = "Couldn't send it. Check your connection and try again.";
+        return;
+      }
+      closeSheet(); toast("Thanks! Your report was sent.");
+    };
+    setTimeout(() => $("#bugWhat").focus(), 50);
   }
 
   // ---------- profile ----------
