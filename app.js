@@ -397,7 +397,7 @@
         <button class="btn small" id="changeBar">Change</button></div>
 
       <label class="field-label" for="arrive">Getting there around</label>
-      <select id="arrive" class="select">${TIMES.map((t) => `<option value="${t}" ${t === draft.arrive ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select>
+      <input type="time" id="arrive" class="select" value="${esc(draft.arrive)}" required />
 
       <label class="field-label" for="comment">What's the move?</label>
       <textarea class="comment" id="comment" placeholder="Pregame plans, a birthday, a drink special… give your friends a reason to pull up.">${esc(draft.comment || "")}</textarea>
@@ -423,7 +423,8 @@
       hype.style.setProperty("--fill", draft.excitement + "%");
     };
     hype.addEventListener("input", updHype); updHype();
-    $("#arrive").onchange = (e) => { draft.arrive = e.target.value; };
+    // Any time, to the minute (Sam, 2026-11-18): type it, or use the phone's time wheel.
+    $("#arrive").oninput = $("#arrive").onchange = (e) => { if (/^\d\d:\d\d$/.test(e.target.value)) draft.arrive = e.target.value; };
 
     const ta = $("#comment"), cc = $("#cc"), limitC = wordLimiter(ta, COMMENT_WORDS);
     const updComment = () => {
