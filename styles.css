@@ -257,3 +257,33 @@ textarea.comment:focus { border-color: var(--red); }
 .note-ico { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center;
   background: var(--bg); border: 1.5px solid var(--line); color: var(--red); font-size: 14px; font-weight: 800; }
 .note-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* Replies (Twitter-style thread) */
+.card.post { cursor: pointer; }
+.card.post:hover { border-color: #e0d2d3; }
+.reply-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; min-width: 0; }
+.reply-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 0;
+  color: var(--muted); font-weight: 600; font-size: 13px; flex: none; }
+.reply-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; }
+.reply-btn:hover { color: var(--red); }
+.reply-peek { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.reply-peek b { color: var(--text); }
+.mine-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.thread-post { padding: 4px 0 12px; border-bottom: 1px solid var(--line); }
+.thread-post.flash { animation: flash 1.4s ease-out; border-radius: 12px; }
+@keyframes flash { from { background: var(--red-tint); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .thread-post.flash { animation: none; } }
+.replies { display: flex; flex-direction: column; }
+.reply { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.reply:last-child { border-bottom: 0; }
+.reply-body { flex: 1; min-width: 0; }
+.reply-text { margin-top: 2px; overflow-wrap: anywhere; }
+.reply-compose { margin-top: 12px; }
+.reply-compose textarea.comment { min-height: 64px; }
+.reply-compose-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Friends' spots on the map: size = how often your friends go */
+.spot { border-radius: 50%; background: rgba(197, 5, 12, .22); border: 2px solid var(--red); box-sizing: border-box; }
+.spot-note { font-size: 13px; color: var(--red); font-weight: 600; margin: -8px 0 4px; }
+#friendsBody > h2:first-child { margin-top: 18px; }
