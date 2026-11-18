@@ -433,32 +433,48 @@ textarea.comment:focus { border-color: var(--red); }
 
 /* Top bar: a little guy walks from the WORD logo to the bar by the bell (Sam, 2026-11-18).
    He loops every few seconds; with reduced motion he just stands by the logo. */
-.street { position: relative; flex: 1 1 auto; min-width: 84px; height: 36px; align-self: center; margin-right: 6px; }
+.street { position: relative; flex: 1 1 auto; min-width: 96px; height: 44px; align-self: flex-end; margin: 0 8px 6px 0; }
 .street svg { position: absolute; bottom: 0; }
-.walker { width: 16px; height: 26px; left: 0; overflow: visible; animation: stroll 7s linear infinite; }
-.walker circle { fill: var(--white); }
-.walker line { stroke: var(--white); stroke-width: 2.6; stroke-linecap: round; }
-.walker .leg, .walker .arm { transform-box: view-box; }
-.walker .leg { transform-origin: 10px 19.5px; animation: swing .5s ease-in-out infinite alternate; }
-.walker .arm { transform-origin: 10.4px 11px; animation: swing .5s ease-in-out infinite alternate-reverse; }
-.walker .l2, .walker .a2 { animation-direction: alternate-reverse; }
-.walker .a2 { animation-direction: alternate; }
-.pub { right: 0; width: 40px; height: 32px; }
-.pub text { fill: var(--red); font: 900 6.4px var(--display); letter-spacing: .6px; }
-.pub path, .pub rect { fill: var(--white); }
-.pub .cut { fill: var(--red); }
-.pub .mug { fill: var(--white); }
-@keyframes swing { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+
+/* The walker: a white silhouette with jointed hips, knees, shoulders and elbows.
+   Far-side limbs are a touch dimmer so he reads as 3D. */
+.walker { width: 16px; height: 32px; left: 0; overflow: visible; animation: stroll 9s linear infinite; }
+.walker path, .walker circle { fill: var(--white); }
+.walker .far path, .walker .far circle { fill: #F6C9CB; }
+.walker g { transform-box: view-box; }
+.walker .leg { transform-origin: 12.1px 24px; animation: thigh 1s linear infinite; }
+.walker .shin { transform-origin: 12.1px 34.2px; animation: knee 1s linear infinite; }
+.walker .arm { transform-origin: 12.2px 11px; animation: shoulder 1s ease-in-out infinite; }
+.walker .fore { transform-origin: 12px 18px; animation: elbow 1s ease-in-out infinite; }
+.walker .far, .walker .far .shin, .walker .far .fore { animation-delay: -.5s; }
+.walker .bob { animation: bob .5s ease-in-out infinite; }
+@keyframes thigh { 0%, 100% { transform: rotate(20deg); } 25% { transform: rotate(-2deg); } 50% { transform: rotate(-24deg); } 75% { transform: rotate(2deg); } }
+@keyframes knee { 0%, 100% { transform: rotate(14deg); } 15% { transform: rotate(48deg); } 32% { transform: rotate(30deg); } 50% { transform: rotate(2deg); } 75% { transform: rotate(4deg); } }
+@keyframes shoulder { 0%, 100% { transform: rotate(-22deg); } 50% { transform: rotate(22deg); } }
+@keyframes elbow { 0%, 100% { transform: rotate(-34deg); } 50% { transform: rotate(-8deg); } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.9px); } }
 @keyframes stroll {
   0% { left: 0; opacity: 0; }
-  6% { opacity: 1; }
-  84% { left: calc(100% - 58px); opacity: 1; }
-  92%, 100% { left: calc(100% - 50px); opacity: 0; }
+  5% { opacity: 1; }
+  86% { left: calc(100% - 52px); opacity: 1; }
+  93%, 100% { left: calc(100% - 46px); opacity: 0; }
 }
+
+/* The bar: brick front, neon BAR sign, striped awning, lit window and door. */
+.pub { right: 0; width: 52px; height: 38px; }
+.pub .wall, .pub .awn-a { fill: var(--white); }
+.pub .bricks { stroke: var(--red); stroke-width: .5; opacity: .35; fill: none; }
+.pub .sign { fill: var(--red-dark); stroke: #FFB3B6; stroke-width: .7; }
+.pub text { fill: #FFF3F3; font: 900 7.4px var(--display); letter-spacing: 1px; filter: drop-shadow(0 0 1.2px #FF8A8F); }
+.pub .awn-b { fill: var(--red-dark); }
+.pub .frame { fill: var(--red-dark); }
+.pub .glow { fill: #FFD98A; }
+.pub .mugs { fill: #C77E0E; }
+
 @media (prefers-reduced-motion: reduce) {
-  .walker, .walker .leg, .walker .arm { animation: none; }
+  .walker, .walker g { animation: none; }
 }
 /* Phone: the logo gives up a little room so the street fits. */
 @media (max-width: 899px) {
-  .brand { flex: 0 1 180px; margin-right: 10px; }
+  .brand { flex: 0 1 170px; margin-right: 10px; }
 }

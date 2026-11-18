@@ -21,23 +21,47 @@
       </h1>
       <!-- Little guy walking from the logo to the bar (Sam, 2026-11-18). Decoration only. -->
       <div class="street" aria-hidden="true">
-        <svg class="walker" viewBox="0 0 20 32">
-          <circle cx="11" cy="5" r="3.6" />
-          <line class="body" x1="10.5" y1="9" x2="10" y2="19.5" />
-          <line class="arm a1" x1="10.4" y1="11" x2="10.4" y2="17.5" />
-          <line class="arm a2" x1="10.4" y1="11" x2="10.4" y2="17.5" />
-          <line class="leg l1" x1="10" y1="19.5" x2="10" y2="30" />
-          <line class="leg l2" x1="10" y1="19.5" x2="10" y2="30" />
+        <svg class="walker" viewBox="0 0 24 48">
+          <g class="bob">
+            <!-- far arm and leg (dimmer, behind) -->
+            <g class="limb arm far"><path d="M10.9 10.6h2.6l-.2 7.6h-2.2z" /><g class="fore"><path d="M11 17.8h2.1l-.3 6.4h-1.6z" /><circle cx="12" cy="24.6" r="1.1" /></g></g>
+            <g class="limb leg far"><path d="M10.2 23.4h3.8l-.6 11h-2.6z" /><g class="shin"><path d="M10.8 34h2.6l-.4 9.6h-1.8z" /><path d="M10.7 43.2h2.6l2.7 1.2v1.3h-5.3z" /></g></g>
+            <!-- head, neck, torso -->
+            <circle cx="12.6" cy="4.4" r="3.3" />
+            <path d="M11.6 7.2h2.2l.1 2.2h-2.4z" />
+            <path d="M9.2 9.6c1.6-.7 4.6-.8 6.2 0l.4 6.5-.9 9h-5.3l-.9-9z" />
+            <!-- near leg and arm -->
+            <g class="limb leg near"><path d="M10.2 23.4h3.8l-.6 11h-2.6z" /><g class="shin"><path d="M10.8 34h2.6l-.4 9.6h-1.8z" /><path d="M10.7 43.2h2.6l2.7 1.2v1.3h-5.3z" /></g></g>
+            <g class="limb arm near"><path d="M10.9 10.6h2.6l-.2 7.6h-2.2z" /><g class="fore"><path d="M11 17.8h2.1l-.3 6.4h-1.6z" /><circle cx="12" cy="24.6" r="1.1" /></g></g>
+          </g>
         </svg>
-        <svg class="pub" viewBox="0 0 40 32">
-          <rect x="3" y="9" width="34" height="23" rx="1" />
-          <rect class="cut" x="6" y="2" width="28" height="9" rx="2" />
-          <rect x="7.3" y="3.3" width="25.4" height="6.4" rx="1.2" />
-          <text x="20" y="8.6" text-anchor="middle">BAR</text>
-          <path class="cut" d="M3 13h34v3a2.8 2.8 0 0 1-5.7 0 2.8 2.8 0 0 1-5.6 0 2.8 2.8 0 0 1-5.7 0 2.8 2.8 0 0 1-5.6 0 2.8 2.8 0 0 1-5.7 0 2.8 2.8 0 0 1-5.7 0z" />
-          <rect class="cut" x="7" y="20" width="10" height="8" rx="1" />
-          <rect class="cut" x="22" y="19" width="10" height="13" rx="1" />
-          <path d="M9.5 21.8h4v4.6h-4z M13.5 22.6h1.3v2.8h-1.3z" />
+        <svg class="pub" viewBox="0 0 60 44">
+          <!-- facade with brick courses -->
+          <rect class="wall" x="3" y="6" width="54" height="38" />
+          <g class="bricks">
+            <path d="M3 9.5h54M3 13h54M3 16.5h54" />
+            <path d="M9 6v3.5M19 6v3.5M29 6v3.5M39 6v3.5M49 6v3.5M14 9.5V13M24 9.5V13M34 9.5V13M44 9.5V13M54 9.5V13M9 13v3.5M19 13v3.5M29 13v3.5M39 13v3.5M49 13v3.5" />
+          </g>
+          <rect class="wall" x="1" y="3" width="58" height="3.4" rx=".8" />
+          <!-- neon sign -->
+          <rect class="sign" x="17" y="7.4" width="26" height="9.2" rx="2.2" />
+          <text x="30" y="14.6" text-anchor="middle">BAR</text>
+          <!-- striped awning -->
+          <path class="awn-a" d="M2 18h56l-2 5H4z" />
+          <path class="awn-b" d="M9 18h7l-.6 5h-6.8zM23 18h7l-.2 5h-6.8zM37 18h7l.2 5h-6.8zM51 18h7l-2 5h-4.6z" />
+          <path class="awn-a" d="M4 23h52v1.4a2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.4 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.4 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.4 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.4 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.3 0 2.2 2.2 0 0 1-4.4 0z" />
+          <!-- lit window with two drinkers' mugs -->
+          <rect class="frame" x="6" y="27" width="22" height="12" rx="1" />
+          <rect class="glow" x="7.4" y="28.4" width="19.2" height="9.2" />
+          <path class="frame" d="M16.3 28.4h1.4v9.2h-1.4z" />
+          <path class="mugs" d="M9.5 32.6h3v3.6h-3zM12.5 33.3h.9v2h-.9zM20.3 31.8h3v4.4h-3zM23.3 32.6h.9v2.2h-.9z" />
+          <!-- door, lamp, step -->
+          <rect class="frame" x="35" y="26.5" width="13" height="17.5" rx="1" />
+          <rect class="glow" x="37.6" y="28.8" width="7.8" height="5.6" rx=".6" />
+          <circle class="wall" cx="45.6" cy="36.6" r=".9" />
+          <path class="wall" d="M51.6 27.5h2.6l-.4 3.2h-1.8z" />
+          <circle class="glow" cx="52.9" cy="31.4" r="1.2" />
+          <rect class="wall" x="33.5" y="42.4" width="16" height="1.6" />
         </svg>
       </div>
       <div class="top-actions">
