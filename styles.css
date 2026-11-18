@@ -290,7 +290,7 @@ textarea.comment:focus { border-color: var(--red); }
 
 /* Post card layout: header, small bar + time, big comment, replies, meter last */
 .card.post { display: flex; flex-direction: column; gap: 8px; }
-.post-head { display: flex; gap: 10px; align-items: center; }
+.post-head { display: flex; gap: 10px; align-items: flex-start; }
 .post-meta { flex: 1; min-width: 0; }
 .post-meta .line1 { display: flex; justify-content: space-between; gap: 8px; }
 .post-meta .who { font-weight: 700; }
@@ -313,3 +313,20 @@ textarea.comment:focus { border-color: var(--red); }
 .mine .reply-bar { margin-top: 8px; }
 .mine .post-text { margin-top: 8px; }
 .mine .post-meter { margin-top: 8px; }
+
+/* Bar-switch saga: earlier picks crossed out, current bar last */
+.post-where { line-height: 1.6; }
+.was { border: 0; background: none; padding: 0; font: inherit; color: var(--muted); text-decoration: line-through;
+  text-decoration-thickness: 1.5px; cursor: pointer; }
+.was:hover, .was[aria-expanded="true"] { color: var(--red); }
+.post-where .arrow { margin: 0 4px; color: var(--muted); }
+.was-box { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.was-title { font-size: 13px; }
+.was-title span { color: var(--muted); }
+.was-box .meter { margin-top: 6px; }
+.mine .was, .mine .post-where .arrow { color: rgba(255,255,255,.7); }
+.mine .was-box { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); }
+.mine .was-title span { color: rgba(255,255,255,.8); }
+.was-comment { margin-top: 4px; font-size: 14px; overflow-wrap: anywhere; }
+.was-comment.none { color: var(--muted); font-style: italic; }
+.mine .was-comment.none { color: rgba(255,255,255,.75); }

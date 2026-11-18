@@ -165,6 +165,31 @@
     b.classList.toggle("hidden", !n);
   }
 
+  // Tap a crossed-out bar to see that earlier pick; tap again to close.
+  // Runs in the capture phase so it doesn't also open the post's replies.
+  function fmtClock(ts) {
+    const d = new Date(ts);
+    return fmtTime(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
+  }
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".was");
+    if (!btn) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const card = btn.closest(".card.post, .mine, .thread-post");
+    const id = card.dataset.thread || (card.querySelector("[data-thread]") || {}).dataset?.thread || card.dataset.post;
+    const p = findPost(id);
+    const box = btn.closest(".post-meta").querySelector(".was-box");
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.closest(".post-where").querySelectorAll(".was").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (open || !p) { box.classList.add("hidden"); return; }
+    const h = p.history[+btn.dataset.was];
+    btn.setAttribute("aria-expanded", "true");
+    box.innerHTML = `<div class="was-title"><b>${esc(BAR_BY_ID[h.barId].name)}</b> <span>· picked ${fmtClock(h.at)}</span></div>
+      ${h.comment ? `<div class="was-comment">${esc(h.comment)}</div>` : `<div class="was-comment none">No comment</div>`}
+      ${meter(h.excitement, true)}`;
+    box.classList.remove("hidden");
+  }, true);
+
   // ---------- feed ----------
   // Post layout (Sam, 2026-11-18): name + picture, then bar and arrival time in
   // small text, then the comment in larger text, replies, and the excitement bar last.
@@ -173,7 +198,9 @@
     return `<div class="post-head">${avatar(u)}
         <div class="post-meta">
           <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
-          <div class="post-where"><b data-bar="${b.id}">${esc(b.name)}</b> · ~${fmtTime(p.arrive)}</div>
+          <div class="post-where">${(p.history || []).map((h, i) =>
+            `<button class="was" data-was="${i}" aria-expanded="false" title="Earlier pick">${esc(BAR_BY_ID[h.barId].name)}</button><span class="arrow">→</span>`).join("")}<b data-bar="${b.id}">${esc(b.name)}</b> · ~${fmtTime(p.arrive)}</div>
+          <div class="was-box hidden"></div>
         </div></div>
       ${p.comment ? `<div class="post-text">${esc(p.comment)}</div>` : ""}
       ${opts.replies ? replyBar(p) : ""}
@@ -340,6 +367,10 @@
       const prev = myPost();
       state.posts = state.posts.filter((p) => !(p.userId === state.me && nightKey(p.at) === tonight()));
       const post = { userId: state.me, barId: draft.barId, at: Date.now(), excitement: draft.excitement, arrive: draft.arrive, comment: draft.comment.trim() };
+      // Switching bars keeps the old pick, so the feed can show the whole saga.
+      const history = prev ? (prev.history || []).slice() : [];
+      if (prev && prev.barId !== post.barId) history.push({ barId: prev.barId, at: prev.at, excitement: prev.excitement, arrive: prev.arrive, comment: prev.comment || "" });
+      if (history.length) post.history = history;
       state.posts.push(post);
       if (prev) state.replies.forEach((r) => { if (r.post === pid(prev)) r.post = pid(post); });
       onPost(post, prev);
@@ -568,7 +599,7 @@
     if (!canSee) { closeSheet(); toast("Only friends can see that post"); return; }
     const u = user(p.userId), b = BAR_BY_ID[p.barId], rs = repliesFor(pid(p));
     openSheet(`
-      <div class="thread-post ${opts.highlight ? "flash" : ""}">
+      <div class="thread-post ${opts.highlight ? "flash" : ""}" data-post="${pid(p)}">
         ${postBody(p)}
       </div>
       <div class="field-label">${rs.length} ${rs.length === 1 ? "reply" : "replies"}</div>
@@ -836,6 +867,12 @@
     save();
   }
 
+  if (!state.seen["demo:switcher:" + tonight()] && !tonightsPosts().some((p) => p.userId === "u_nick")) {
+    const nick = window.ROLLING_SEED().posts.find((p) => p.userId === "u_nick" && p.history);
+    if (nick && user("u_nick")) state.posts.push(nick);
+    state.seen["demo:switcher:" + tonight()] = 1;
+    save();
+  }
   if (seedReplies) {
     const tp = (uid) => tonightsPosts().find((p) => p.userId === uid);
     const add = (uid, onUser, text, mins) => { const p = tp(onUser); if (p) state.replies.push({ post: pid(p), userId: uid, text, at: Math.min(Date.now(), p.at + mins * 60000) }); };
