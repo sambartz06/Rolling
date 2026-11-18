@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e0d14" />
+  <title>Rolling</title>
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">Rolling<span class="dot">.</span></div>
+      <label class="viewas" title="No sign-in yet: pick which mock user you are">
+        <span>Viewing as</span>
+        <select id="viewAs"></select>
+      </label>
+    </header>
+
+    <main>
+      <section id="tab-feed" class="tab active"></section>
+      <section id="tab-map" class="tab">
+        <div id="map"></div>
+        <div class="map-legend" id="mapLegend"></div>
+      </section>
+      <section id="tab-friends" class="tab"></section>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="feed" class="active"><span class="ico">🏠</span><span>Feed</span></button>
+      <button data-tab="map"><span class="ico">🗺️</span><span>Map</span></button>
+      <button id="postBtn" class="post-btn" aria-label="Post where you're rolling"><span>＋</span></button>
+      <button data-tab="friends"><span class="ico">👥</span><span>Friends</span></button>
+    </nav>
+
+    <!-- Bottom sheet, used for the post composer and for "who's going" on the map -->
+    <div id="sheetBackdrop" class="backdrop hidden"></div>
+    <div id="sheet" class="sheet hidden" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="bars.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
