@@ -478,3 +478,6 @@ textarea.comment:focus { border-color: var(--red); }
 @media (max-width: 899px) {
   .brand { flex: 0 1 170px; margin-right: 10px; }
 }
+
+/* Arrival time box: same look as the other fields, with a roomy tap target. */
+input[type="time"].select { min-height: 48px; font-size: 16px; }
