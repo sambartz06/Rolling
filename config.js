@@ -3,6 +3,6 @@
 // Find them in Supabase: your project > Connect (or Project Settings > API Keys).
 // Leave them empty to run the browser-only demo with sample data.
 window.WORD_CONFIG = {
-  supabaseUrl: "",
-  supabaseKey: "",
+  supabaseUrl: "https://suyxfdvcvcwfnkjxgwbi.supabase.co",
+  supabaseKey: "sb_publishable_mL3aEQtYy41H1ankwEFQxQ_qIvMoScV",
 };
