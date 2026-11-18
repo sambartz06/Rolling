@@ -384,3 +384,50 @@ textarea.comment:focus { border-color: var(--red); }
 .link-btn { background: none; border: 0; padding: 4px; font-size: 14px; font-weight: 600; color: var(--red); }
 .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 24px;
   padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* ---------- Computer screens (Sam, 2026-11-18) ----------
+   Under 900px wide everything above applies: the phone look we'll keep for the
+   iPhone app. On wider screens the site fills the browser window: red bar across
+   the top, the tabs become a sidebar on the left, the map fills everything to its
+   right, pages sit in a readable centered column, and pop-ups open as centered
+   windows instead of sliding up from the bottom. */
+@media (min-width: 900px) {
+  :root { --side-w: 232px; }
+  #app { max-width: none; box-shadow: none; }
+  .topbar { padding: 0 28px; }
+  .brand { flex: 0 1 260px; }
+
+  .tabbar { top: var(--topbar-h); bottom: 0; right: auto; width: var(--side-w); height: auto;
+    display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 20px 14px;
+    background: var(--surface); border-top: 0; border-right: 1px solid var(--line); }
+  .tabbar button { flex-direction: row; justify-content: flex-start; gap: 14px; padding: 12px 14px;
+    border-radius: 12px; font-size: 15px; }
+  .tabbar button:hover { background: var(--bg); color: var(--text); }
+  .tabbar button.active { background: var(--red-tint); color: var(--red); }
+  .tabbar svg { width: 22px; height: 22px; }
+  .tabbar .badge { position: static; margin-left: auto; }
+
+  main { top: var(--topbar-h); bottom: 0; left: var(--side-w); }
+  .tab { padding: 28px max(32px, calc((100% - 720px) / 2)) 40px; }
+  #tab-map { padding: 0; }
+  #tab-thread.active { padding-bottom: 0; }
+  #tab-thread .reply-compose { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+
+  /* Feed: a little wider, with friends' posts side by side. */
+  #tab-feed { padding-left: max(32px, calc((100% - 1040px) / 2)); padding-right: max(32px, calc((100% - 1040px) / 2)); }
+  #tab-feed .stack { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+  #tab-feed .card.mine { max-width: 640px; }
+
+  .map-legend { top: 16px; left: 16px; right: 16px; }
+
+  .backdrop { position: fixed; }
+  .sheet { position: fixed; left: 50%; top: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%);
+    width: min(520px, calc(100vw - 48px)); max-height: 86vh; border-radius: 20px; padding: 24px 24px 22px;
+    box-shadow: 0 24px 60px rgba(30, 10, 12, .25); animation: pop .16s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translate(-50%, -48%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+  .grabber { display: none; }
+  .toast { position: fixed; bottom: 28px; left: calc(50% + var(--side-w) / 2); }
+
+  .auth { display: grid; place-items: center; }
+}
+@media (min-width: 900px) and (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
