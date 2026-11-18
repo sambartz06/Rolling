@@ -416,7 +416,6 @@ textarea.comment:focus { border-color: var(--red); }
   /* Feed: a little wider, with friends' posts side by side. */
   #tab-feed { padding-left: max(32px, calc((100% - 1040px) / 2)); padding-right: max(32px, calc((100% - 1040px) / 2)); }
   #tab-feed .stack { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; }
-  #tab-feed .card.mine { max-width: 640px; }
 
   .map-legend { top: 16px; left: 16px; right: 16px; }
 
