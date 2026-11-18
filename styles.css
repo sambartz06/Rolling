@@ -491,3 +491,26 @@ input[type="time"].select { min-height: 48px; font-size: 16px; }
 .c-green { fill: var(--ill-green); }
 .s-ox { fill: none; stroke: var(--ill-ox); stroke-width: .55; opacity: .55; }
 .pub-word { font: 900 5.2px var(--display); letter-spacing: .9px; }
+
+/* Tap the bar: a mug pops up, tips, and sloshes foam (app.js pourBeer). */
+.street .pub { cursor: pointer; pointer-events: auto; }
+.pour { position: absolute; bottom: 30px; width: 18px; height: 20px; pointer-events: none; }
+.pour .mug { position: absolute; inset: 0; width: 18px; height: 20px; overflow: visible; transform-origin: 50% 100%;
+  animation: mug-pop 1.4s ease-out forwards; }
+.pour .glass { fill: rgba(255,255,255,.35); }
+.pour .beer { fill: #E6E6E6; }
+.pour .handle, .pour .foam { fill: var(--white); }
+.pour .drop { position: absolute; left: 0; top: 4px; border-radius: 50%; background: var(--white); opacity: 0;
+  animation: drop 0.9s cubic-bezier(.3,.6,.6,1) forwards; animation-delay: calc(.35s + var(--d)); }
+@keyframes mug-pop {
+  0% { transform: translateY(14px) scale(.4); opacity: 0; }
+  20% { transform: translateY(0) scale(1); opacity: 1; }
+  45%, 70% { transform: rotate(-38deg); opacity: 1; }
+  100% { transform: rotate(0) translateY(-2px); opacity: 0; }
+}
+@keyframes drop {
+  0% { transform: translate(0, 0); opacity: 1; }
+  40% { transform: translate(calc(var(--dx) * .6), calc(var(--up) * -1)); opacity: 1; }
+  100% { transform: translate(var(--dx), 26px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .pour .mug, .pour .drop { animation-duration: .01s; } }

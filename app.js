@@ -1406,6 +1406,26 @@
     return m || "Something went wrong. Try again.";
   }
 
+  // Tap the bar in the top banner: a mug pops out and sloshes beer (Sam, 2026-11-18). Just for fun.
+  function pourBeer() {
+    const street = $(".street"), pub = $(".street .pub");
+    if (!street || !pub || street.querySelector(".pour")) return;
+    const fx = document.createElement("div");
+    fx.className = "pour";
+    fx.style.right = (pub.getBoundingClientRect().width / 2 - 9) + "px";
+    let drops = "";
+    for (let i = 0; i < 9; i++) {
+      const dx = -4 - Math.random() * 22, up = 2 + Math.random() * 5, r = 1.5 + Math.random() * 2;
+      drops += `<i class="drop" style="--dx:${dx.toFixed(1)}px;--up:${up.toFixed(1)}px;--d:${(i * 35)}ms;width:${(r * 2).toFixed(1)}px;height:${(r * 2).toFixed(1)}px"></i>`;
+    }
+    fx.innerHTML = `<svg class="mug" viewBox="0 0 18 20"><path class="glass" d="M2 5h10v13H2z"/><path class="beer" d="M3 8h8v9H3z"/>
+      <path class="handle" d="M12 8h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-3v-2h3v-3h-3z"/>
+      <path class="foam" d="M1.5 6.5c0-2 1.6-3 3-2.4C5.3 2.6 7.8 2.4 9 3.6c1.6-.6 3.4.6 3.2 2.9z"/></svg>${drops}`;
+    street.appendChild(fx);
+    setTimeout(() => fx.remove(), 1500);
+  }
+  { const p = $(".street .pub"); if (p) { p.addEventListener("click", pourBeer); p.setAttribute("title", "Cheers"); } }
+
   if (LIVE) startLive(); else startDemo();
   // Keep "12m ago" labels and the bell fresh.
   setInterval(() => { if (!state.me) return; renderBell(); if (currentTab === "feed") renderFeed(); if (!LIVE) pingNew(); }, 60000);
