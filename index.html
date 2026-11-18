@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0e0d14" />
+  <meta name="theme-color" content="#C5050C" />
   <title>Rolling</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="vendor/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -28,10 +31,14 @@
     </main>
 
     <nav class="tabbar">
-      <button data-tab="feed" class="active"><span class="ico">🏠</span><span>Feed</span></button>
-      <button data-tab="map"><span class="ico">🗺️</span><span>Map</span></button>
+      <button data-tab="feed" class="active">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>Feed</span></button>
+      <button data-tab="map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg><span>Map</span></button>
       <button id="postBtn" class="post-btn" aria-label="Post where you're rolling"><span>＋</span></button>
-      <button data-tab="friends"><span class="ico">👥</span><span>Friends</span></button>
+      <button data-tab="friends">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7.5 0a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM1 20c0-3.3 3.6-6 8-6s8 2.7 8 6v1H1v-1Zm17.5 1v-1c0-2-1-3.8-2.6-5 3.6.2 7.1 2 7.1 5v1h-4.5Z"/></svg><span>Friends</span>
+        <span class="badge hidden" id="reqBadge">0</span></button>
     </nav>
 
     <!-- Bottom sheet, used for the post composer and for "who's going" on the map -->
