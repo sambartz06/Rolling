@@ -9,7 +9,7 @@ Beta: Madison bars only.
 
 No install needed. Live site: https://sambartz06.github.io/Rolling/ (GitHub Pages, from `main`).
 Or open `index.html` in a browser (Chrome or Safari).
-For the phone-sized view on a laptop, open dev tools and turn on device mode, or just narrow the window.
+On a computer the site fills the window (sidebar tabs, big map); under 900px wide it uses the phone layout, which is the look we keep for the iPhone app.
 
 **Accounts:** sign up with your name, @handle, email and password. Posts, replies, friends,
 favorites and notification settings are saved in Supabase (a hosted database), and only friends
