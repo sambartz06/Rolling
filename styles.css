@@ -481,3 +481,13 @@ textarea.comment:focus { border-color: var(--red); }
 
 /* Arrival time box: same look as the other fields, with a roomy tap target. */
 input[type="time"].select { min-height: 48px; font-size: 16px; }
+
+/* "Out now" (past their arrival time) and "Didn't make it out" */
+.status { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px;
+  font-weight: 700; vertical-align: 1px; letter-spacing: .01em; }
+.status.out { background: var(--red-tint); color: var(--red); }
+.status.bail { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+.post-where.bailed b { text-decoration: line-through; color: var(--muted); }
+.mine .status.out { background: rgba(255,255,255,.2); color: var(--white); }
+.mine .status.bail { background: transparent; color: var(--white); border-color: rgba(255,255,255,.55); }
+.mine .post-where.bailed b { color: rgba(255,255,255,.75); }

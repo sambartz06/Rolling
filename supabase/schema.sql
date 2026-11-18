@@ -50,10 +50,14 @@ create table if not exists public.posts (
   excitement int not null check (excitement between 0 and 100),
   comment text not null default '' check (char_length(comment) <= 1000),
   history jsonb not null default '[]' check (jsonb_typeof(history) = 'array' and jsonb_array_length(history) <= 50),
+  -- "Didn't make it out": {at, comment}. Also added by didnt-make-it.sql for existing projects.
+  bail jsonb check (bail is null or (jsonb_typeof(bail) = 'object' and char_length(coalesce(bail->>'comment', '')) <= 1000)),
   posted_at timestamptz not null default now(),
   unique (user_id, night)
 );
 create index if not exists posts_posted_at on public.posts (posted_at);
+alter table public.posts add column if not exists bail jsonb
+  check (bail is null or (jsonb_typeof(bail) = 'object' and char_length(coalesce(bail->>'comment', '')) <= 1000));
 
 create table if not exists public.replies (
   id uuid primary key default gen_random_uuid(),
@@ -149,7 +153,7 @@ language sql stable security definer set search_path = public as $$
          sum(power(0.5, extract(epoch from (now() - p.posted_at)) / 86400 / 21))::float8,
          (count(*) filter (where p.posted_at > now() - interval '30 days'))::int
   from public.posts p
-  where p.posted_at > now() - interval '365 days'
+  where p.posted_at > now() - interval '365 days' and p.bail is null
   group by p.bar_id;
 $$;
 

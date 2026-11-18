@@ -109,6 +109,19 @@
       .filter((p) => f.has(p.userId) || p.userId === state.me)
       .sort((a, b) => b.at - a.at);
   }
+  // "Didn't make it out" (Sam, 2026-11-18): the post stays up, crossed out, with a note why.
+  const bailed = (p) => !!(p && p.bail);
+  // The moment they said they'd get there. Times before 6 AM belong to the next morning.
+  function arriveAt(p) {
+    const [y, m, d] = nightKey(p.at).split("-").map(Number);
+    const [h, mi] = (p.arrive || "22:00").split(":").map(Number);
+    return new Date(y, m - 1, d, h < 6 ? h + 24 : h, mi).getTime();
+  }
+  // Once their arrival time passes, we assume they're there (no check-ins, on purpose).
+  const isOut = (p) => !bailed(p) && Date.now() >= arriveAt(p);
+  // Posts that still count as going out: map, bar counts, crowd alerts.
+  const activePosts = () => visiblePosts().filter((p) => !bailed(p));
+  const nowHHMM = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
 
   // ---------- popularity ----------
   // Every post by anyone counts toward a bar, newer posts count more
@@ -120,6 +133,7 @@
     if (state.popularity) {
       for (const [id, v] of Object.entries(state.popularity)) { score[id] = v.score; if (v.month) month[id] = v.month; }
     } else for (const p of state.posts) {
+      if (p.bail) continue;
       const ageDays = Math.max(0, (now - p.at) / DAY);
       score[p.barId] = (score[p.barId] || 0) + Math.pow(0.5, ageDays / 21);
       if (ageDays <= 30) month[p.barId] = (month[p.barId] || 0) + 1;
@@ -267,17 +281,20 @@
   // Post layout (Sam, 2026-11-18): name (no profile pictures anywhere), then bar and arrival time in
   // small text, then the comment in larger text, replies, and the excitement bar last.
   function postBody(p, opts = {}) {
-    const u = user(p.userId), b = BAR_BY_ID[p.barId];
+    const u = user(p.userId), b = BAR_BY_ID[p.barId], bail = bailed(p), out = isOut(p);
+    const status = bail ? `<span class="status bail">Didn't make it out</span>`
+      : out ? `<span class="status out">Out now</span>` : "";
+    const when = bail ? `planned ~${fmtTime(p.arrive)}` : out ? `there since ~${fmtTime(p.arrive)}` : `~${fmtTime(p.arrive)}`;
     return `<div class="post-head">
         <div class="post-meta">
-          <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}</span><span class="time">${ago(p.at)}</span></div>
-          <div class="post-where">${(p.history || []).map((h, i) =>
-            `<button class="was" data-was="${i}" aria-expanded="false" title="Earlier pick">${esc(BAR_BY_ID[h.barId].name)}</button><span class="arrow">→</span>`).join("")}<b data-bar="${b.id}">${esc(b.name)}</b> · ~${fmtTime(p.arrive)}</div>
+          <div class="line1"><span class="who">${u.id === state.me ? "You" : esc(u.name)}${isFav(state.me, u.id) ? ' <span class="fav-star" title="Favorite">★</span>' : ""}${status}</span><span class="time">${ago(bail ? p.bail.at : p.at)}</span></div>
+          <div class="post-where ${bail ? "bailed" : ""}">${(p.history || []).map((h, i) =>
+            `<button class="was" data-was="${i}" aria-expanded="false" title="Earlier pick">${esc(BAR_BY_ID[h.barId].name)}</button><span class="arrow">→</span>`).join("")}<b data-bar="${b.id}">${esc(b.name)}</b> · ${when}</div>
           <div class="was-box hidden"></div>
         </div></div>
-      ${p.comment ? `<div class="post-text">${esc(p.comment)}</div>` : ""}
+      ${bail ? (p.bail.comment ? `<div class="post-text">${esc(p.bail.comment)}</div>` : "") : p.comment ? `<div class="post-text">${esc(p.comment)}</div>` : ""}
       ${opts.replies ? replyBar(p) : ""}
-      <div class="post-meter">${meter(p.excitement)}</div>`;
+      ${bail ? "" : `<div class="post-meter">${meter(p.excitement)}</div>`}`;
   }
   function postDetails(p) {
     return `${meter(p.excitement)}
@@ -288,7 +305,8 @@
   function renderFeed() {
     const el = $("#tab-feed");
     const mine = myPost();
-    const posts = visiblePosts().filter((p) => p.userId !== state.me);
+    // Friends who bailed sink below the ones still going.
+    const posts = visiblePosts().filter((p) => p.userId !== state.me).sort((a, b) => bailed(a) - bailed(b));
     const posted = new Set(posts.map((p) => p.userId));
     const quiet = [...friendIds(state.me)].filter((id) => !posted.has(id)).map(user);
 
@@ -298,7 +316,13 @@
       html += `<div class="card mine">
         <div class="label">Your post tonight</div>
         ${postBody(mine, { replies: true })}
-        <div class="mine-actions"><button class="btn small" id="editMine">Change tonight's post</button></div>
+        <div class="mine-actions">${bailed(mine)
+          ? `<button class="btn small" id="editMine">We're so back</button>`
+          : isOut(mine)
+            ? `<button class="btn small" id="editMine">Update where I am</button>
+               <button class="btn small ghost" id="bailMine">Didn't make it out</button>`
+            // Still headed there (before their arrival time): no "Didn't make it out" yet (Sam, 2026-11-18).
+            : `<button class="btn small" id="editMine">Change tonight's post</button>`}</div>
       </div>`;
     } else {
       html += `<div class="card mine">
@@ -329,6 +353,7 @@
 
     const s = $("#startPost", el); if (s) s.onclick = () => openComposer();
     const e = $("#editMine", el); if (e) e.onclick = () => openComposer();
+    const bm = $("#bailMine", el); if (bm) bm.onclick = openBail;
     el.querySelectorAll("[data-bar]").forEach((n) => n.onclick = (ev) => { ev.stopPropagation(); showTab("map"); focusBar(n.dataset.bar); });
     el.querySelectorAll("[data-goto]").forEach((n) => n.onclick = () => showTab(n.dataset.goto));
     el.querySelectorAll("[data-thread]").forEach((n) => n.onclick = (ev) => { ev.stopPropagation(); openThread(n.dataset.thread); });
@@ -349,18 +374,21 @@
   // ---------- composer: pick bar -> excitement, arrival, comment ----------
   function openComposer(preselectBarId) {
     const existing = myPost();
+    // Already out (past their arrival time)? Then this is "where are you now?", and it starts at now.
+    const out = !!existing && Date.now() >= arriveAt(existing);
     const draft = {
       barId: preselectBarId || (existing && existing.barId) || null,
       excitement: existing ? existing.excitement : 60,
-      arrive: existing ? existing.arrive : "22:00",
+      arrive: out ? nowHHMM() : existing ? existing.arrive : "22:00",
       comment: existing ? existing.comment : "",
+      out,
     };
     draft.barId ? renderDetails(draft) : renderPick(draft);
   }
 
   function friendCountsByBar() {
     const counts = {};
-    for (const p of visiblePosts()) if (p.userId !== state.me) counts[p.barId] = (counts[p.barId] || 0) + 1;
+    for (const p of activePosts()) if (p.userId !== state.me) counts[p.barId] = (counts[p.barId] || 0) + 1;
     return counts;
   }
 
@@ -392,11 +420,11 @@
   function renderDetails(draft) {
     const b = BAR_BY_ID[draft.barId];
     openSheet(`
-      <h3>How's tonight looking?</h3>
+      <h3>${draft.out ? "Where are you now?" : "How's tonight looking?"}</h3>
       <div class="picked"><span><div class="n">${esc(b.name)}</div><div class="sub small">${esc(barSub(b))}</div></span>
         <button class="btn small" id="changeBar">Change</button></div>
 
-      <label class="field-label" for="arrive">Getting there around</label>
+      <label class="field-label" for="arrive">${draft.out ? "Got there around" : "Getting there around"}</label>
       <input type="time" id="arrive" class="select" value="${esc(draft.arrive)}" required />
 
       <label class="field-label" for="comment">What's the move?</label>
@@ -411,7 +439,7 @@
 
       <div class="sheet-actions">
         <button class="btn" id="cancel">Cancel</button>
-        <button class="btn primary" id="submit">${myPost() ? "Update post" : "Post"}</button>
+        <button class="btn primary" id="submit">${bailed(myPost()) ? (draft.out ? "I'm out" : "I'm going after all") : draft.out ? "Update where I am" : myPost() ? "Update post" : "Post"}</button>
       </div>`);
     $("#changeBar").onclick = () => renderPick(draft);
     $("#cancel").onclick = closeSheet;
@@ -445,10 +473,46 @@
       const history = prev ? (prev.history || []).slice() : [];
       if (prev && prev.barId !== post.barId) history.push({ barId: prev.barId, at: prev.at, excitement: prev.excitement, arrive: prev.arrive, comment: prev.comment || "" });
       post.history = history;
+      if (prev && prev.bail) post.bail = null; // posting again means they made it out after all
       state.posts.push(post);
       persist(() => API.savePost(post), "Couldn't save your post. Check your connection and try again.");
       closeSheet();
-      toast("You're headed to " + b.name);
+      toast((isOut(post) ? "You're at " : "You're headed to ") + b.name);
+      render();
+    };
+  }
+
+  // ---------- didn't make it out ----------
+  // Planned on Brats, ended up asleep on the couch: keep the post, cross it out, say why.
+  function openBail() {
+    const mine = myPost();
+    if (!mine) return;
+    openSheet(`
+      <h3>Didn't make it out?</h3>
+      <div class="sub">Your post stays up for your friends, crossed out, with your note. You can still change your mind later.</div>
+      <label class="field-label" for="bailText">What happened?</label>
+      <textarea class="comment" id="bailText" placeholder="Fell asleep at 9:30. The pregame won. Next weekend for sure.">${esc((mine.bail && mine.bail.comment) || "")}</textarea>
+      <div class="small counter" id="bc"></div>
+      <div class="sheet-actions">
+        <button class="btn" id="cancel">Cancel</button>
+        <button class="btn primary" id="submitBail">Post it</button>
+      </div>`);
+    $("#cancel").onclick = closeSheet;
+    const ta = $("#bailText"), bc = $("#bc"), limit = wordLimiter(ta, COMMENT_WORDS);
+    const upd = () => {
+      limit();
+      const n = wordCount(ta.value);
+      bc.textContent = n + "/" + COMMENT_WORDS + " words";
+      bc.classList.toggle("full", n >= COMMENT_WORDS);
+    };
+    ta.addEventListener("input", upd); upd();
+    $("#submitBail").onclick = () => {
+      const p = myPost();
+      if (!p) return closeSheet();
+      p.bail = { at: Date.now(), comment: ta.value.trim() };
+      persist(() => API.savePost(p), "Couldn't save that. Check your connection and try again.");
+      closeSheet();
+      toast("Got it. Next time.");
       render();
     };
   }
@@ -492,7 +556,7 @@
 
   function goersByBar() {
     const by = {};
-    for (const p of visiblePosts()) (by[p.barId] = by[p.barId] || []).push(p);
+    for (const p of activePosts()) (by[p.barId] = by[p.barId] || []).push(p);
     return by;
   }
 
@@ -555,7 +619,7 @@
       else if (pts.length === 1) map.setView(pts[0], 16, { animate: false });
     }
 
-    const totalFriends = visiblePosts().filter((p) => p.userId !== state.me).length;
+    const totalFriends = activePosts().filter((p) => p.userId !== state.me).length;
     const barsCount = Object.keys(by).filter((id) => by[id].some((p) => p.userId !== state.me)).length;
     $("#mapLegend").innerHTML = `
       <div class="legend-left">
@@ -594,7 +658,7 @@
       }).join("") : `<div class="empty" style="padding:14px">No friends here yet tonight.</div>`}</div>
       <div class="sheet-actions">
         <button class="btn" id="closeBar">Close</button>
-        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">I'm headed here</button>`}
+        ${mine && mine.barId === barId ? "" : `<button class="btn primary" id="rollHere">${mine && isOut(mine) ? "I'm here now" : "I'm headed here"}</button>`}
       </div>`);
     $("#closeBar").onclick = closeSheet;
     const r = $("#rollHere"); if (r) r.onclick = () => openComposer(barId);
@@ -841,7 +905,7 @@
     for (const [a, b, meta] of state.friendships) if (meta && (a === me || b === me)) since[a === me ? b : a] = meta.at;
     const after = (uid, at) => !since[uid] || at >= since[uid];
     const crowdTotal = {}, crowdSoFar = {};
-    for (const p of posts) if (f.has(p.userId)) crowdTotal[p.barId] = (crowdTotal[p.barId] || 0) + 1;
+    for (const p of posts) if (f.has(p.userId) && !p.bail) crowdTotal[p.barId] = (crowdTotal[p.barId] || 0) + 1;
     for (const p of posts) {
       if (!f.has(p.userId)) continue;
       const name = user(p.userId).name, bar = barName(p.barId);
@@ -855,10 +919,16 @@
       }
       for (let i = 1; i < picks.length; i++) {
         if (picks[i].barId === picks[i - 1].barId || !s.switched || !after(p.userId, picks[i].at)) continue;
-        add("switch", `${name} switched from ${barName(picks[i - 1].barId)} to ${barName(picks[i].barId)}`, picks[i].at, base);
+        // Past the time they said they'd get there, they were already out, so they "moved".
+        const moved = picks[i].at >= arriveAt({ at: picks[i - 1].at, arrive: picks[i - 1].arrive });
+        add("switch", `${name} ${moved ? "moved" : "switched"} from ${barName(picks[i - 1].barId)} to ${barName(picks[i].barId)}`, picks[i].at, base);
+      }
+      if (p.bail) {
+        if (s.switched && after(p.userId, p.bail.at)) add("bail", `${name} didn't make it out tonight`, p.bail.at, base);
+        continue; // a bailed post doesn't count toward crowds or "same bar"
       }
       // They picked the bar I'd already picked (as their first post or by switching to it).
-      if (s.sameBar && mine && mine.barId === p.barId && mine.at < p.at && after(p.userId, p.at)) {
+      if (s.sameBar && mine && !mine.bail && mine.barId === p.barId && mine.at < p.at && after(p.userId, p.at)) {
         add("same", `${name} is headed to ${bar} too`, p.at, base);
       }
       if (s.hyped && p.excitement >= 95 && after(p.userId, p.at)) add("hype", `${name} is ${hypeLabel(p.excitement).toLowerCase()} for ${bar} tonight`, p.at, base);
@@ -918,7 +988,7 @@
     b.classList.toggle("hidden", !n);
   }
 
-  const NOTE_ICON = { reply: "💬", fav: "★", post: "🍻", same: "🤝", switch: "↪", crowd: "🔥", hype: "⚡", request: "👋", accept: "✓", reminder: "⏰" };
+  const NOTE_ICON = { reply: "💬", fav: "★", post: "🍻", same: "🤝", switch: "↪", bail: "😴", crowd: "🔥", hype: "⚡", request: "👋", accept: "✓", reminder: "⏰" };
   function openInbox() {
     const notes = myNotes();
     openSheet(`
@@ -980,7 +1050,7 @@
         ${toggle("barCrowd", "A bar fills up with friends", "Once a night per bar, when enough of your friends pick the same one.",
           `<div class="stepper" aria-label="How many friends"><button data-step="-1" aria-label="Fewer">−</button><b id="crowdSize">${s.crowdSize}</b><button data-step="1" aria-label="More">＋</button><span class="sub small">or more friends</span></div>`)}
         ${toggle("sameBar", "A friend picks my bar", "When someone posts the same bar you already posted tonight.")}
-        ${toggle("switched", "A friend switches bars", "When a friend changes tonight's post to a different bar.")}
+        ${toggle("switched", "A friend switches bars or bails", "When a friend changes tonight's bar, or didn't make it out.")}
         ${toggle("hyped", "A friend is sending it", "When a friend maxes out the excitement meter.")}
         ${toggle("replies", "Replies", "When someone replies to your post, or to a post you replied to.")}
         ${toggle("requests", "Friend requests", "When someone sends you a request or accepts yours.")}
@@ -1083,7 +1153,7 @@
     const el = $("#tab-profile");
     const me = user(state.me);
     const mine = state.posts.filter((p) => p.userId === state.me);
-    const nights = new Set(mine.map((p) => nightKey(p.at))).size;
+    const nights = new Set(mine.filter((p) => !p.bail).map((p) => nightKey(p.at))).size;
     const counts = {};
     for (const p of mine) {
       counts[p.barId] = (counts[p.barId] || 0) + 1;
